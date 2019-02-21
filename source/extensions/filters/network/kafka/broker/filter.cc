@@ -6,6 +6,8 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Broker {
 
+constexpr bool WRITE_THROUGH = true;
+
 void Forwarder::onMessage(AbstractRequestSharedPtr request) {
   const RequestHeader& header = request->request_header_;
   response_decoder_.expectResponse(header.correlation_id_, header.api_key_, header.api_version_);
@@ -69,15 +71,43 @@ absl::flat_hash_map<int32_t, MonotonicTime>& KafkaMetricsFacadeImpl::getRequestA
   return request_arrivals_;
 }
 
+class CapturingMessageListener : public RequestCallback, public ResponseCallback {
+public:
+  CapturingMessageListener(){};
+
+  void onMessage(AbstractRequestSharedPtr arg) override { requests_.push_back(arg); }
+
+  void onFailedParse(RequestParseFailureSharedPtr) override{};
+
+  void onMessage(AbstractResponseSharedPtr arg) override { responses_.push_back(arg); }
+
+  void onFailedParse(ResponseMetadataSharedPtr) override{};
+
+  std::vector<AbstractRequestSharedPtr> requestSnapshot() { return drain(requests_); };
+
+  std::vector<AbstractResponseSharedPtr> responseSnapshot() { return drain(responses_); };
+
+private:
+  std::vector<AbstractRequestSharedPtr> requests_;
+  std::vector<AbstractResponseSharedPtr> responses_;
+
+  template <typename T> std::vector<T> drain(std::vector<T>& arg) {
+    const auto result{arg};
+    arg.erase(arg.begin(), arg.end());
+    return result;
+  }
+};
+
 KafkaBrokerFilter::KafkaBrokerFilter(Stats::Scope& scope, TimeSource& time_source,
                                      const std::string& stat_prefix)
     : KafkaBrokerFilter{
           std::make_shared<KafkaMetricsFacadeImpl>(scope, time_source, stat_prefix)} {};
 
 KafkaBrokerFilter::KafkaBrokerFilter(const KafkaMetricsFacadeSharedPtr& metrics)
-    : metrics_{metrics}, response_decoder_{new ResponseDecoder({metrics})},
-      request_decoder_{
-          new RequestDecoder({std::make_shared<Forwarder>(*response_decoder_), metrics})} {};
+    : metrics_{metrics}, capturer_{std::make_shared<CapturingMessageListener>()},
+      response_decoder_{new ResponseDecoder({metrics, capturer_})},
+      request_decoder_{new RequestDecoder(
+          {std::make_shared<Forwarder>(*response_decoder_), metrics, capturer_})} {};
 
 KafkaBrokerFilter::KafkaBrokerFilter(KafkaMetricsFacadeSharedPtr metrics,
                                      ResponseDecoderSharedPtr response_decoder,
@@ -94,6 +124,16 @@ Network::FilterStatus KafkaBrokerFilter::onData(Buffer::Instance& data, bool) {
   ENVOY_LOG(trace, "data from Kafka client [{} request bytes]", data.length());
   try {
     request_decoder_->onData(data);
+
+    if (WRITE_THROUGH) {
+      data.drain(data.length());
+      const std::vector<AbstractRequestSharedPtr>& snapshot = capturer_->requestSnapshot();
+      RequestEncoder encoder{data};
+      for (const auto& message : snapshot) {
+        encoder.encode(*message);
+      }
+    }
+
     return Network::FilterStatus::Continue;
   } catch (const EnvoyException& e) {
     ENVOY_LOG(debug, "could not process data from Kafka client: {}", e.what());
@@ -107,6 +147,16 @@ Network::FilterStatus KafkaBrokerFilter::onWrite(Buffer::Instance& data, bool) {
   ENVOY_LOG(trace, "data from Kafka broker [{} response bytes]", data.length());
   try {
     response_decoder_->onData(data);
+
+    if (WRITE_THROUGH) {
+      data.drain(data.length());
+      const std::vector<AbstractResponseSharedPtr>& snapshot = capturer_->responseSnapshot();
+      ResponseEncoder encoder{data};
+      for (const auto& message : snapshot) {
+        encoder.encode(*message);
+      }
+    }
+
     return Network::FilterStatus::Continue;
   } catch (const EnvoyException& e) {
     ENVOY_LOG(debug, "could not process data from Kafka broker: {}", e.what());
