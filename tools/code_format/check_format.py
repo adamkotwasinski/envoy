@@ -609,6 +609,7 @@ class FormatChecker:
                 prior_line += line
 
     def check_file_contents(self, file_path, checker):
+        print("checking file: " + file_path)
         error_messages = []
 
         if file_path.endswith("version_history/current.rst"):
