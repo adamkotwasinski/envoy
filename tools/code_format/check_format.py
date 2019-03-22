@@ -390,6 +390,7 @@ class FormatChecker:
                 previous_flag = line
 
     def check_file_contents(self, file_path, checker):
+        print("checking file: " + file_path)
         error_messages = []
         if file_path.endswith("source/common/runtime/runtime_features.cc"):
             # Do runtime alphabetical order checks.
