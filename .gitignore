@@ -23,6 +23,14 @@
 !\.zuul
 !\.zuul.yaml
 
+.cproject
+.pydevproject
+.autotools
+.pydevproject
+.cproject
+.settings/
+ci/.bazelrc
+/ci
 /bazel-*
 /mobile/bazel-*
 BROWSE
@@ -55,3 +63,6 @@ bazel.output.txt
 tools/dev/src
 distribution/custom
 examples/websocket/certs
+.cproject
+.pydevproject
+logz*
