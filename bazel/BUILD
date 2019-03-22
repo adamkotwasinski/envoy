@@ -56,7 +56,7 @@ genrule(
     name = "raw_build_id",
     outs = ["raw_build_id.ldscript"],
     cmd = """
-      grep -E "^BUILD_SCM_REVISION" bazel-out/volatile-status.txt \
+      echo 0 \
     | sed 's/^BUILD_SCM_REVISION //' \
     | tr -d '\\n' \\
     > $@
