@@ -23,6 +23,14 @@
 !\.zuul
 !\.zuul.yaml
 
+.cproject
+.pydevproject
+.autotools
+.pydevproject
+.cproject
+.settings/
+ci/.bazelrc
+/ci
 /bazel-*
 /mobile/bazel-*
 BROWSE
@@ -57,3 +65,6 @@ distribution/custom
 examples/websocket/certs
 /contrib/golang/**/test_data/go.sum
 /contrib/golang/**/test_data/*/go.sum
+.cproject
+.pydevproject
+logz*
