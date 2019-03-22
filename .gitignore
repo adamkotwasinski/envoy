@@ -1,3 +1,11 @@
+.cproject
+.pydevproject
+.autotools
+.pydevproject
+.cproject
+.settings/
+ci/.bazelrc
+/ci
 /bazel-*
 BROWSE
 /build
@@ -40,3 +48,5 @@ bazel.output.txt
 .coverage
 **/.DS_Store
 **/*.iml
+.cproject
+.pydevproject
