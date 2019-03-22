@@ -1,31 +1,34 @@
 {
-  // See https://go.microsoft.com/fwlink/?LinkId=733558
-  // for the documentation about the tasks.json format
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "Build All Tests",
-      "type": "shell",
-      "command": "bazel build //test/...",
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      }
-    },
-    {
-      "label": "Run All Tests",
-      "type": "shell",
-      "command": "bazel test //test/...",
-      "group": {
-        "kind": "test",
-        "isDefault": true
-      }
-    },
-    {
-      "label": "Refresh Compilation Database",
-      "type": "shell",
-      "command": "tools/vscode/refresh_compdb.sh",
-      "problemMatcher": []
-    }
-  ]
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "BUILD",
+            "type": "shell",
+            "command": "bazel build --jobs 7 //source/exe:envoy-static",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "BUILD TESTS",
+            "type": "shell",
+            "command": "bazel build //test/...",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "RUN TESTS",
+            "type": "shell",
+            "command": "bazel test //test/...",
+            "group": "build"
+        },
+        {
+            "label": "Refresh Compilation Database",
+            "type": "shell",
+            "command": "tools/vscode/refresh_compdb.sh",
+            "problemMatcher": []
+        }
+    ]
 }

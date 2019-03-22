@@ -1,0 +1,3 @@
+#!/bin/bash
+
+bazel test //test/extensions/filters/network/kafka/...
