@@ -124,7 +124,8 @@ class StatefulProcessor:
           without_empty_newlines = re.sub(r'^\s*$', '', without_comments, flags=re.MULTILINE)
           message_spec = json.loads(without_empty_newlines)
           message = self.parse_top_level_element(message_spec)
-          messages.append(message)
+          if message.get_extra('api_key') in [0, 2, 3, 18]:
+            messages.append(message)
       except Exception as e:
         print('could not process %s' % input_file)
         raise
