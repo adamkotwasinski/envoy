@@ -21,6 +21,14 @@
 !\.zuul
 !\.zuul.yaml
 
+.cproject
+.pydevproject
+.autotools
+.pydevproject
+.cproject
+.settings/
+ci/.bazelrc
+/ci
 /bazel-*
 BROWSE
 /build
@@ -50,3 +58,7 @@ bazel.output.txt
 **/.DS_Store
 **/*.iml
 tools/dev/src
+.cproject
+.pydevproject
+
+logz*
