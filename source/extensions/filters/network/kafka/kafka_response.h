@@ -1,5 +1,6 @@
 #pragma once
 
+#include "extensions/filters/network/kafka/debug_helpers.h"
 #include "extensions/filters/network/kafka/external/serialization_composite.h"
 #include "extensions/filters/network/kafka/serialization.h"
 #include "extensions/filters/network/kafka/tagged_fields.h"
@@ -59,6 +60,11 @@ struct ResponseMetadata {
            correlation_id_ == rhs.correlation_id_ && tagged_fields_ == rhs.tagged_fields_;
   };
 
+  friend std::ostream& operator<<(std::ostream& os, const ResponseMetadata& arg) {
+    return os << "{" << arg.api_key_ << ", " << arg.api_version_ << ", " << arg.correlation_id_
+              << ", " << arg.tagged_fields_ << "}";
+  }
+
   const int16_t api_key_;
   const int16_t api_version_;
   const int32_t correlation_id_;
@@ -92,6 +98,12 @@ public:
    * @param dst buffer instance to keep serialized message.
    */
   virtual uint32_t encode(Buffer::Instance& dst) const PURE;
+
+  virtual std::ostream& print(std::ostream& os) const PURE;
+
+  friend std::ostream& operator<<(std::ostream& os, const AbstractResponse& arg) {
+    return arg.print(os);
+  }
 
   /**
    * Response's metadata.
@@ -140,6 +152,13 @@ public:
   bool operator==(const Response<Data>& rhs) const {
     return metadata_ == rhs.metadata_ && data_ == rhs.data_;
   };
+
+  /**
+   * Pretty-prints given response into a stream.
+   */
+  std::ostream& print(std::ostream& os) const override {
+    return os << "{" << metadata_ << ", data=" << data_ << "}";
+  }
 
 private:
   const Data data_;

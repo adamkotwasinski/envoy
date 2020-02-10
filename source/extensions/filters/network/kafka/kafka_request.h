@@ -2,6 +2,7 @@
 
 #include "envoy/common/exception.h"
 
+#include "extensions/filters/network/kafka/debug_helpers.h"
 #include "extensions/filters/network/kafka/external/serialization_composite.h"
 #include "extensions/filters/network/kafka/serialization.h"
 #include "extensions/filters/network/kafka/tagged_fields.h"
@@ -69,6 +70,12 @@ struct RequestHeader {
            correlation_id_ == rhs.correlation_id_ && client_id_ == rhs.client_id_ &&
            tagged_fields_ == rhs.tagged_fields_;
   };
+
+  friend std::ostream& operator<<(std::ostream& os, const RequestHeader& arg) {
+    return os << "{api_key=" << arg.api_key_ << ", api_version=" << arg.api_version_
+              << ", correlation_id=" << arg.correlation_id_ << ", client_id=" << arg.client_id_
+              << "}";
+  };
 };
 
 /**
@@ -112,6 +119,12 @@ public:
    * @param dst buffer instance to keep serialized message
    */
   virtual uint32_t encode(Buffer::Instance& dst) const PURE;
+
+  virtual std::ostream& print(std::ostream& os) const PURE;
+
+  friend std::ostream& operator<<(std::ostream& os, const AbstractRequest& arg) {
+    return arg.print(os);
+  }
 
   /**
    * Request's header.
@@ -162,6 +175,14 @@ public:
   bool operator==(const Request<Data>& rhs) const {
     return request_header_ == rhs.request_header_ && data_ == rhs.data_;
   };
+
+  /**
+   * Pretty-prints given request into a stream.
+   */
+  std::ostream& print(std::ostream& os) const override {
+    // write header
+    return os << request_header_ << " " << data_;
+  }
 
 private:
   const Data data_;
