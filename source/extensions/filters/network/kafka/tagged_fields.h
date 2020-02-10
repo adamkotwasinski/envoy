@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "extensions/filters/network/kafka/debug_helpers.h"
 #include "extensions/filters/network/kafka/serialization.h"
 
 /**
@@ -43,6 +44,10 @@ struct TaggedField {
   }
 
   bool operator==(const TaggedField& rhs) const { return tag_ == rhs.tag_ && data_ == rhs.data_; }
+
+  friend std::ostream& operator<<(std::ostream& os, const TaggedField& arg) {
+    return os << "[" << arg.tag_ << "=" << arg.data_.size() << "]";
+  }
 };
 
 /**
@@ -121,6 +126,10 @@ struct TaggedFields {
   }
 
   bool operator==(const TaggedFields& rhs) const { return fields_ == rhs.fields_; }
+
+  friend std::ostream& operator<<(std::ostream& os, const TaggedFields& arg) {
+    return os << arg.fields_;
+  }
 };
 
 /**

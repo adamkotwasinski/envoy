@@ -69,6 +69,16 @@ struct {{ complex_type.name }} {
     && {{ field.name }}_ == rhs.{{ field.name }}_{% endfor %};
   };
 
+	{% if complex_type.fields|length > 0 %}
+	friend std::ostream& operator<<(std::ostream& os, const {{ complex_type.name }}& arg) {
+	{% else %}
+	friend std::ostream& operator<<(std::ostream& os, const {{ complex_type.name }}&) {
+	{% endif %}
+		return os << "{"{% for field in complex_type.fields %}
+					<< "{{ field.name }}=" << arg.{{ field.name }}_{% if not field.is_printable() %}{% if field.is_nullable() %}->{% else %}.{% endif %}size(){% endif %} << ", "{% endfor %}
+					<< "}";
+	}
+
 };
 
 {#

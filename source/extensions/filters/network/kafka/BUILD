@@ -75,6 +75,7 @@ envoy_cc_library(
         "kafka_request_parser.cc",
     ],
     hdrs = [
+        "debug_helpers.h",
         "external/requests.h",
         "kafka_request_parser.h",
     ],
@@ -138,6 +139,7 @@ envoy_cc_library(
         "kafka_response_parser.cc",
     ],
     hdrs = [
+        "debug_helpers.h",
         "external/responses.h",
         "kafka_response_parser.h",
     ],
@@ -208,7 +210,10 @@ envoy_cc_library(
 
 envoy_cc_library(
     name = "tagged_fields_lib",
-    hdrs = ["tagged_fields.h"],
+    hdrs = [
+        "debug_helpers.h",
+        "tagged_fields.h",
+    ],
     deps = [":serialization_lib"],
 )
 
