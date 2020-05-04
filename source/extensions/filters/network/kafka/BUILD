@@ -9,8 +9,43 @@ load(
     "envoy_cc_library",
     "envoy_package",
 )
+load("//bazel:envoy_internal.bzl", "envoy_external_dep_path")
 
 envoy_package()
+
+envoy_cc_extension(
+    name = "kafka_mesh_config_lib",
+    srcs = ["mesh/config.cc"],
+    hdrs = ["mesh/config.h"],
+    security_posture = "requires_trusted_downstream_and_upstream",
+    status = "wip",
+    deps = [
+        ":kafka_mesh_filter_lib",
+        "//source/extensions/filters/network:well_known_names",
+        "//source/extensions/filters/network/common:factory_base_lib",
+        "@envoy_api//envoy/extensions/filters/network/kafka_mesh/v3:pkg_cc_proto",
+    ],
+)
+
+envoy_cc_library(
+    name = "kafka_mesh_filter_lib",
+    srcs = ["mesh/filter.cc"],
+    hdrs = [
+        "mesh/filter.h",
+        "external/request_metrics.h",
+        "external/response_metrics.h",
+    ],
+    deps = [
+        ":kafka_request_codec_lib",
+        ":kafka_response_codec_lib",
+        "//include/envoy/buffer:buffer_interface",
+        "//include/envoy/network:connection_interface",
+        "//include/envoy/network:filter_interface",
+        "//source/common/common:assert_lib",
+        "//source/common/common:minimal_logger_lib",
+        "//source/extensions/clusters/kafka:kafka_cluster",
+    ],
+)
 
 envoy_cc_extension(
     name = "kafka_broker_config_lib",
@@ -23,6 +58,7 @@ envoy_cc_extension(
         "//source/extensions/filters/network:well_known_names",
         "//source/extensions/filters/network/common:factory_base_lib",
         "@envoy_api//envoy/extensions/filters/network/kafka_broker/v3:pkg_cc_proto",
+        envoy_external_dep_path("librdkafka"),
     ],
 )
 

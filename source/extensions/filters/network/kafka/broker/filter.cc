@@ -101,18 +101,31 @@ private:
 KafkaBrokerFilter::KafkaBrokerFilter(Stats::Scope& scope, TimeSource& time_source,
                                      const std::string& stat_prefix)
     : KafkaBrokerFilter{
-          std::make_shared<KafkaMetricsFacadeImpl>(scope, time_source, stat_prefix)} {};
+          std::make_shared<KafkaMetricsFacadeImpl>(scope, time_source, stat_prefix)}
+{
+  ENVOY_LOG(warn, "KafkaBrokerFilter - ctor1");
+};
 
 KafkaBrokerFilter::KafkaBrokerFilter(const KafkaMetricsFacadeSharedPtr& metrics)
     : metrics_{metrics}, capturer_{std::make_shared<CapturingMessageListener>()},
       response_decoder_{new ResponseDecoder({metrics, capturer_})},
       request_decoder_{new RequestDecoder(
-          {std::make_shared<Forwarder>(*response_decoder_), metrics, capturer_})} {};
+          {std::make_shared<Forwarder>(*response_decoder_), metrics, capturer_})}
+{
+  ENVOY_LOG(warn, "KafkaBrokerFilter - ctor2");
+};
 
 KafkaBrokerFilter::KafkaBrokerFilter(KafkaMetricsFacadeSharedPtr metrics,
                                      ResponseDecoderSharedPtr response_decoder,
                                      RequestDecoderSharedPtr request_decoder)
-    : metrics_{metrics}, response_decoder_{response_decoder}, request_decoder_{request_decoder} {};
+    : metrics_{metrics}, response_decoder_{response_decoder}, request_decoder_{request_decoder}
+{
+  ENVOY_LOG(warn, "KafkaBrokerFilter - ctor3");
+};
+
+KafkaBrokerFilter::~KafkaBrokerFilter() {
+  ENVOY_LOG(warn, "KafkaBrokerFilter - dtor");
+}
 
 Network::FilterStatus KafkaBrokerFilter::onNewConnection() {
   return Network::FilterStatus::Continue;

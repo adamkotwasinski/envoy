@@ -25,6 +25,9 @@ public:
   // Discovery Service).
   const std::string Eds = "envoy.cluster.eds";
 
+  // Kafka cluster (cluster that figures out Kafka topology with Kafka protocol).
+  const std::string Kafka = "envoy.clusters.kafka";
+
   // Original destination (dynamic cluster that automatically adds hosts as needed based on the
   // original destination address of the downstream connection).
   const std::string OriginalDst = "envoy.cluster.original_dst";

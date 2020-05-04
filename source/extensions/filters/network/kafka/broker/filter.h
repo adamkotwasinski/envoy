@@ -151,6 +151,8 @@ public:
   KafkaBrokerFilter(KafkaMetricsFacadeSharedPtr metrics, ResponseDecoderSharedPtr response_decoder,
                     RequestDecoderSharedPtr request_decoder);
 
+  ~KafkaBrokerFilter();
+
   // Network::ReadFilter
   Network::FilterStatus onNewConnection() override;
   void initializeReadFilterCallbacks(Network::ReadFilterCallbacks& callbacks) override;

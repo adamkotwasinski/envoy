@@ -160,7 +160,6 @@ public:
     return os << "{" << metadata_ << ", data=" << data_ << "}";
   }
 
-private:
   const Data data_;
 };
 
