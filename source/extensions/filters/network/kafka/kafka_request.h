@@ -184,7 +184,6 @@ public:
     return os << request_header_ << " " << data_;
   }
 
-private:
   const Data data_;
 };
 

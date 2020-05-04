@@ -109,10 +109,6 @@ private:
   RichResponseMetricsSharedPtr response_metrics_;
 };
 
-class CapturingMessageListener;
-
-using CapturingMessageListenerSharedPtr = std::shared_ptr<CapturingMessageListener>;
-
 /**
  * Implementation of Kafka broker-level filter.
  * Uses two decoders - request and response ones, that are connected using Forwarder instance.
@@ -170,7 +166,6 @@ private:
   KafkaBrokerFilter(const KafkaMetricsFacadeSharedPtr& metrics);
 
   const KafkaMetricsFacadeSharedPtr metrics_;
-  const CapturingMessageListenerSharedPtr capturer_;
   const ResponseDecoderSharedPtr response_decoder_;
   const RequestDecoderSharedPtr request_decoder_;
 };
