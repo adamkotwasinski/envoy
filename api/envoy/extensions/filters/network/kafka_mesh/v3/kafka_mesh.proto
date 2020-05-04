@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package envoy.extensions.filters.network.kafka_mesh.v3;
+
+import "udpa/annotations/versioning.proto";
+
+import "validate/validate.proto";
+
+option java_package = "io.envoyproxy.envoy.extensions.filters.network.kafka_mesh.v3";
+option java_outer_classname = "KafkaMeshProto";
+option java_multiple_files = true;
+
+// [#protodoc-title: Kafka Mesh]
+// Kafka Mesh :ref:`configuration overview <config_network_filters_kafka_mesh>`.
+// [#extension: envoy.filters.network.kafka_mesh]
+
+message KafkaMesh {
+  option (udpa.annotations.versioning).previous_message_type =
+      "envoy.config.filter.network.kafka_mesh.v2alpha1.KafkaMesh";
+
+  string advertised_listener = 1 [(validate.rules).string = {min_bytes: 1}];
+
+  repeated ForwardingRule forwarding_rules = 2;
+}
+
+message ForwardingRule {
+
+  string target_cluster = 1;
+
+  oneof trigger {
+    // Intended place for future types of forwarding rules.
+    string topic_prefix = 2;
+  }
+
+}

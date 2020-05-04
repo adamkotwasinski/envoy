@@ -1,4 +1,5 @@
 static_resources:
+
   listeners:
   - address:
       socket_address:
@@ -6,47 +7,39 @@ static_resources:
         port_value: 19092
     filter_chains:
     - filters:
-      - name: envoy.filters.network.kafka_broker
-        typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.kafka_broker.v2alpha1.KafkaBroker
-          stat_prefix: myfilter
-      - name: envoy.tcp_proxy
-        typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
-          stat_prefix: ingress_tcp
-          cluster: localinstallation1
-  - address:
-      socket_address:
-        address: 127.0.0.1
-        port_value: 19093
-    filter_chains:
-    - filters:
-      - name: envoy.filters.network.kafka_broker
-        typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.kafka_broker.v2alpha1.KafkaBroker
-          stat_prefix: otherfilter
-      - name: envoy.tcp_proxy
-        typed_config:
-          "@type": type.googleapis.com/envoy.config.filter.network.tcp_proxy.v2.TcpProxy
-          stat_prefix: ingress_tcp
-          cluster: localinstallation2
+      - name: envoy.filters.network.kafka_mesh
+        config:
+          advertised_listener: "127.0.0.1:9092"
+          forwarding_rules:
+          - target_cluster: kafka_c1
+            topic_prefix: apples
+          - target_cluster: kafka_c2
+            topic_prefix: bananas
+          - target_cluster: kafka_c3
+            topic_prefix: cherries
+
   clusters:
-  - name: localinstallation1
+  - name: kafka_c1
     connect_timeout: 0.25s
-    type: strict_dns
-    lb_policy: round_robin
     hosts:
     - socket_address:
         address: 127.0.0.1
         port_value: 9092
-  - name: localinstallation2
+    cluster_type:
+      name: envoy.clusters.kafka
+      typed_config:
+        "@type": type.googleapis.com/google.protobuf.Struct
+  - name: kafka_c2
     connect_timeout: 0.25s
-    type: strict_dns
-    lb_policy: round_robin
     hosts:
     - socket_address:
         address: 127.0.0.1
         port_value: 9093
+    cluster_type:
+      name: envoy.clusters.kafka
+      typed_config:
+        "@type": type.googleapis.com/google.protobuf.Struct
+
 admin:
   access_log_path: /dev/null
   profile_path: /dev/null
