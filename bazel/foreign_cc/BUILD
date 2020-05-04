@@ -5,6 +5,25 @@ load("@rules_foreign_cc//tools/build_defs:configure.bzl", "configure_make")
 
 envoy_package()
 
+configure_make(
+    name = "librdkafka_build",
+    configure_options = ["--disable-gssapi && cp Makefile.config src/.. && cp config.h src/.."],
+    lib_source = "@edenhill_librdkafka//:all",
+    configure_in_place = True,
+    alwayslink = True,
+    static_libraries = ["librdkafka.a", "librdkafka++.a"],
+    make_commands = ["make", "make install"],
+    tags = ["skip_on_windows"],
+)
+
+cc_library(
+    name = "librdkafka",
+    tags = ["skip_on_windows"],
+    deps = [
+        "librdkafka_build",
+    ],
+)
+
 # autotools packages are unusable on Windows as-is
 # TODO: Consider our own gperftools.BUILD file as we do with many other packages
 configure_make(
