@@ -48,10 +48,15 @@ InstanceImpl::InstanceImpl(
       redis_command_stats_(redis_command_stats), redis_cluster_stats_{REDIS_CLUSTER_STATS(
                                                      POOL_COUNTER(*stats_scope_))},
       refresh_manager_(std::move(refresh_manager)) {
+  ENVOY_LOG(warn, "InstanceImpl ctor");
   tls_->set([this, cluster_name](
                 Event::Dispatcher& dispatcher) -> ThreadLocal::ThreadLocalObjectSharedPtr {
     return std::make_shared<ThreadLocalPool>(*this, dispatcher, cluster_name);
   });
+}
+
+InstanceImpl::~InstanceImpl() {
+  ENVOY_LOG(warn, "InstanceImpl dtor");
 }
 
 Common::Redis::Client::PoolRequest*
@@ -71,6 +76,8 @@ InstanceImpl::ThreadLocalPool::ThreadLocalPool(InstanceImpl& parent, Event::Disp
     : parent_(parent), dispatcher_(dispatcher), cluster_name_(std::move(cluster_name)),
       drain_timer_(dispatcher.createTimer([this]() -> void { drainClients(); })),
       is_redis_cluster_(false) {
+
+  ENVOY_LOG(warn, "ThreadLocalPool ctor");
   cluster_update_handle_ = parent_.cm_.addThreadLocalClusterUpdateCallbacks(*this);
   Upstream::ThreadLocalCluster* cluster = parent_.cm_.get(cluster_name_);
   if (cluster != nullptr) {
@@ -80,6 +87,7 @@ InstanceImpl::ThreadLocalPool::ThreadLocalPool(InstanceImpl& parent, Event::Disp
 }
 
 InstanceImpl::ThreadLocalPool::~ThreadLocalPool() {
+  ENVOY_LOG(warn, "ThreadLocalPool dtor");
   if (host_set_member_update_cb_handle_ != nullptr) {
     host_set_member_update_cb_handle_->remove();
   }
@@ -212,6 +220,7 @@ InstanceImpl::ThreadLocalActiveClientPtr&
 InstanceImpl::ThreadLocalPool::threadLocalActiveClient(Upstream::HostConstSharedPtr host) {
   ThreadLocalActiveClientPtr& client = client_map_[host];
   if (!client) {
+    ENVOY_LOG(warn, "threadLocalActiveClient - {}", host->hostname());
     client = std::make_unique<ThreadLocalActiveClient>(*this);
     client->host_ = host;
     client->redis_client_ = parent_.client_factory_.create(host, dispatcher_, parent_.config_,

@@ -8,6 +8,7 @@
 #include "envoy/extensions/filters/network/redis_proxy/v3/redis_proxy.pb.validate.h"
 #include "envoy/upstream/upstream.h"
 
+#include "common/common/logger.h"
 #include "common/common/empty_string.h"
 #include "common/config/datasource.h"
 
@@ -50,7 +51,7 @@ private:
 class RedisProxyFilterConfigFactory
     : public Common::FactoryBase<
           envoy::extensions::filters::network::redis_proxy::v3::RedisProxy,
-          envoy::extensions::filters::network::redis_proxy::v3::RedisProtocolOptions> {
+          envoy::extensions::filters::network::redis_proxy::v3::RedisProtocolOptions>, Logger::Loggable<Logger::Id::redis> {
 public:
   RedisProxyFilterConfigFactory() : FactoryBase(NetworkFilterNames::get().RedisProxy, true) {}
 

@@ -41,6 +41,7 @@ EXTENSIONS = {
     # WiP
     "envoy.filters.network.kafka_broker":               "//source/extensions/filters/network/kafka:kafka_broker_config_lib",
     "envoy.filters.network.kafka_mesh":                 "//source/extensions/filters/network/kafka:kafka_mesh_config_lib",
+    "envoy.filters.network.redis_proxy":                "//source/extensions/filters/network/redis_proxy:config",
     "envoy.filters.network.tcp_proxy":                  "//source/extensions/filters/network/tcp_proxy:config",
 
     #

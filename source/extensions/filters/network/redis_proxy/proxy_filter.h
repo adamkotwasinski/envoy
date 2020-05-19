@@ -11,6 +11,7 @@
 #include "envoy/stats/scope.h"
 #include "envoy/upstream/cluster_manager.h"
 
+#include "common/common/logger.h"
 #include "common/buffer/buffer_impl.h"
 
 #include "extensions/filters/network/common/redis/codec.h"
@@ -71,7 +72,8 @@ using ProxyFilterConfigSharedPtr = std::shared_ptr<ProxyFilterConfig>;
  */
 class ProxyFilter : public Network::ReadFilter,
                     public Common::Redis::DecoderCallbacks,
-                    public Network::ConnectionCallbacks {
+                    public Network::ConnectionCallbacks,
+                    Logger::Loggable<Logger::Id::redis> {
 public:
   ProxyFilter(Common::Redis::DecoderFactory& factory, Common::Redis::EncoderPtr&& encoder,
               CommandSplitter::Instance& splitter, ProxyFilterConfigSharedPtr config);

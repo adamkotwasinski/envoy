@@ -36,12 +36,14 @@ ProxyFilter::ProxyFilter(Common::Redis::DecoderFactory& factory,
                          ProxyFilterConfigSharedPtr config)
     : decoder_(factory.create(*this)), encoder_(std::move(encoder)), splitter_(splitter),
       config_(config) {
+  ENVOY_LOG(warn, "ProxyFilter ctor");
   config_->stats_.downstream_cx_total_.inc();
   config_->stats_.downstream_cx_active_.inc();
   connection_allowed_ = config_->downstream_auth_password_.empty();
 }
 
 ProxyFilter::~ProxyFilter() {
+  ENVOY_LOG(warn, "ProxyFilter dtor");
   ASSERT(pending_requests_.empty());
   config_->stats_.downstream_cx_active_.dec();
 }

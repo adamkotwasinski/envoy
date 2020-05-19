@@ -32,6 +32,7 @@ Network::FilterFactoryCb RedisProxyFilterConfigFactory::createFilterFactoryFromP
     const envoy::extensions::filters::network::redis_proxy::v3::RedisProxy& proto_config,
     Server::Configuration::FactoryContext& context) {
 
+  ENVOY_LOG(warn, "RedisProxyFilterConfigFactory::createFilterFactoryFromProtoTyped");
   ASSERT(!proto_config.stat_prefix().empty());
   ASSERT(proto_config.has_settings());
 

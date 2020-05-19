@@ -52,7 +52,7 @@ public:
   void onFailure() override{};
 };
 
-class InstanceImpl : public Instance {
+class InstanceImpl : public Instance, Logger::Loggable<Logger::Id::redis> {
 public:
   InstanceImpl(
       const std::string& cluster_name, Upstream::ClusterManager& cm,
@@ -62,6 +62,10 @@ public:
       Api::Api& api, Stats::ScopePtr&& stats_scope,
       const Common::Redis::RedisCommandStatsSharedPtr& redis_command_stats,
       Extensions::Common::Redis::ClusterRefreshManagerSharedPtr refresh_manager);
+
+  ~InstanceImpl();
+
+
   // RedisProxy::ConnPool::Instance
   Common::Redis::Client::PoolRequest* makeRequest(const std::string& key, RespVariant&& request,
                                                   PoolCallbacks& callbacks) override;
@@ -89,8 +93,13 @@ public:
 private:
   struct ThreadLocalPool;
 
-  struct ThreadLocalActiveClient : public Network::ConnectionCallbacks {
-    ThreadLocalActiveClient(ThreadLocalPool& parent) : parent_(parent) {}
+  struct ThreadLocalActiveClient : public Network::ConnectionCallbacks, Logger::Loggable<Logger::Id::redis> {
+    ThreadLocalActiveClient(ThreadLocalPool& parent) : parent_(parent) {
+      ENVOY_LOG(warn, "ThreadLocalActiveClient - ctor");
+    }
+    ~ThreadLocalActiveClient() {
+      ENVOY_LOG(warn, "ThreadLocalActiveClient - dtor");
+    }
 
     // Network::ConnectionCallbacks
     void onEvent(Network::ConnectionEvent event) override;
@@ -126,7 +135,7 @@ private:
   };
 
   struct ThreadLocalPool : public ThreadLocal::ThreadLocalObject,
-                           public Upstream::ClusterUpdateCallbacks {
+                           public Upstream::ClusterUpdateCallbacks, Logger::Loggable<Logger::Id::redis> {
     ThreadLocalPool(InstanceImpl& parent, Event::Dispatcher& dispatcher, std::string cluster_name);
     ~ThreadLocalPool() override;
     ThreadLocalActiveClientPtr& threadLocalActiveClient(Upstream::HostConstSharedPtr host);
