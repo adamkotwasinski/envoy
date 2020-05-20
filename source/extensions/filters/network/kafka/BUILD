@@ -21,9 +21,24 @@ envoy_cc_extension(
     status = "wip",
     deps = [
         ":kafka_mesh_filter_lib",
+        ":kafka_mesh_producer_manager_lib",
         "//source/extensions/filters/network:well_known_names",
         "//source/extensions/filters/network/common:factory_base_lib",
         "@envoy_api//envoy/extensions/filters/network/kafka_mesh/v3:pkg_cc_proto",
+    ],
+)
+
+envoy_cc_library(
+    name = "kafka_mesh_producer_manager_lib",
+    srcs = [
+        "mesh/producer_manager.cc"
+    ],
+    hdrs = [
+        "mesh/producer_manager.h",
+    ],
+    deps = [
+        "//source/common/common:minimal_logger_lib",
+        envoy_external_dep_path("librdkafka"),
     ],
 )
 

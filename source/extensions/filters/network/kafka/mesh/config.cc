@@ -15,11 +15,16 @@ namespace Kafka {
 namespace Mesh {
 
 Network::FilterFactoryCb KafkaMeshConfigFactory::createFilterFactoryFromProtoTyped(
-    const KafkaMeshProtoConfig&, Server::Configuration::FactoryContext& context) {
+    const KafkaMeshProtoConfig&, Server::Configuration::FactoryContext& /* context */) {
 
+  /*
   const auto cl = context.clusterManager().get("localkafka");
   ENVOY_LOG(warn, "cl {}", cl == nullptr);
   ENVOY_LOG(warn, "cl2 {}", typeid(cl).name());
+  */
+  ENVOY_LOG(warn, "Creating Kafka mesh-filter factory");
+
+
 
   return [](Network::FilterManager& filter_manager) -> void {
     Network::ReadFilterSharedPtr filter = std::make_shared<KafkaMeshFilter>();
