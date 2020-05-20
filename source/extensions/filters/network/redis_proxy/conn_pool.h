@@ -6,7 +6,6 @@
 
 #include "envoy/upstream/cluster_manager.h"
 
-#include "common/common/logger.h"
 #include "extensions/filters/network/common/redis/client.h"
 #include "extensions/filters/network/common/redis/codec.h"
 
