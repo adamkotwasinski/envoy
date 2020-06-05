@@ -7,7 +7,6 @@ EXTENSIONS = {
     #
     # Clusters
     #
-    "envoy.clusters.kafka":                             "//source/extensions/clusters/kafka:kafka_cluster",
 
     #
     # Compression

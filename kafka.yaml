@@ -18,28 +18,6 @@ static_resources:
           - target_cluster: kafka_c3
             topic_prefix: cherries
 
-  clusters:
-  - name: kafka_c1
-    connect_timeout: 0.25s
-    hosts:
-    - socket_address:
-        address: 127.0.0.1
-        port_value: 9092
-    cluster_type:
-      name: envoy.clusters.kafka
-      typed_config:
-        "@type": type.googleapis.com/google.protobuf.Struct
-  - name: kafka_c2
-    connect_timeout: 0.25s
-    hosts:
-    - socket_address:
-        address: 127.0.0.1
-        port_value: 9093
-    cluster_type:
-      name: envoy.clusters.kafka
-      typed_config:
-        "@type": type.googleapis.com/google.protobuf.Struct
-
 admin:
   access_log_path: /dev/null
   profile_path: /dev/null
