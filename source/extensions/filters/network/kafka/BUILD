@@ -5,7 +5,6 @@ load(
     "envoy_cc_library",
     "envoy_package",
 )
-load("//bazel:envoy_internal.bzl", "envoy_external_dep_path")
 
 licenses(["notice"])  # Apache 2
 
@@ -25,7 +24,6 @@ envoy_cc_extension(
         "//source/extensions/filters/network:well_known_names",
         "//source/extensions/filters/network/common:factory_base_lib",
         "@envoy_api//envoy/extensions/filters/network/kafka_broker/v3:pkg_cc_proto",
-        envoy_external_dep_path("librdkafka"),
     ],
 )
 
