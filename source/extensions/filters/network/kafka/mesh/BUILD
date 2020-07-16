@@ -23,6 +23,7 @@ envoy_cc_extension(
     security_posture = "requires_trusted_downstream_and_upstream",
     status = "wip",
     deps = [
+        "//include/envoy/registry",
         "//source/extensions/filters/network:well_known_names",
         "//source/extensions/filters/network/common:factory_base_lib",
         "@envoy_api//envoy/extensions/filters/network/kafka_mesh/v3alpha:pkg_cc_proto",
