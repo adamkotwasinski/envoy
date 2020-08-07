@@ -16,7 +16,7 @@ Network::FilterFactoryCb
 KafkaMeshConfigFactory::createFilterFactoryFromProtoTyped(const KafkaMeshProtoConfig&,
                                                           Server::Configuration::FactoryContext&) {
 
-  throw "boom";
+  throw "boom2";
 }
 
 /**
