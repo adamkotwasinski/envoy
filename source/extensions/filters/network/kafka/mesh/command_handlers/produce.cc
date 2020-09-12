@@ -25,35 +25,39 @@ RecordExtractorImpl::computeFootmarks(const std::vector<TopicProduceData>& data)
 
 std::vector<RecordFootmark>
 RecordExtractorImpl::computeFootmarksForTopic(const std::string& topic, const int32_t partition,
-                                              const Bytes& records) const {
+                                              const Bytes& bytes) const {
+
   // org.apache.kafka.common.record.DefaultRecordBatch.writeHeader(ByteBuffer, long, int, int, byte,
   // CompressionType, TimestampType, long, long, long, short, int, boolean, boolean, int, int)
-  const char* ptr = reinterpret_cast<const char*>(records.data());
-  absl::string_view sv = {ptr, records.size()};
+  absl::string_view data = { reinterpret_cast<const char*>(bytes.data()) , bytes.size()};
 
-  unsigned int step = /* BaseOffset */ 8 + /* Length */ 4 + /* PartitionLeaderEpoch */ 4;
-  if (sv.length() < step) {
+  // Fields common to any records payload. Magic will follow.
+  const unsigned int common_fields_size = /* BaseOffset */ 8 + /* Length */ 4 + /* PartitionLeaderEpoch */ 4;
+  if (data.length() < common_fields_size) {
+    // Badly formatted record batch (underflow).
     return {};
   }
-  sv = {sv.data() + step, sv.length() - step};
+  // Let's skip these common fields.
+  data = {data.data() + common_fields_size, data.length() - common_fields_size};
 
-  /* Magic */
+  // Extract magic.
+  // Magic tells us what is the format of records present in the byte array.
   Int8Deserializer magic_deserializer;
-  magic_deserializer.feed(sv);
-
+  magic_deserializer.feed(data);
   if (magic_deserializer.ready()) {
     int8_t magic = magic_deserializer.get();
-    switch (magic) {
-    case 0:
-    case 1:
-      return {};
-    case 2:
-      return processMagic2(topic, partition, sv);
-    default:
+    if (2 == magic) {
+      // Magic format introduced around Kafka 1.0.0 and still used with Kafka 2.4.
+      // We can extract the records out of the record batch.
+      return extractRecordsOutOfBatchWithMagicEqualTo2(topic, partition, data);
+    } else {
+      // Old client sending old magic, or Apache Kafka introducing new magic.
       return {};
     }
+  } else {
+    // Badly formatted record data (underflow).
+    return {};
   }
-  return {};
 }
 
 // Helper function to get the data (key, value) out of record.
@@ -61,6 +65,7 @@ absl::string_view comsumeBytes(absl::string_view& input) {
   VarInt32Deserializer length_deserializer;
   length_deserializer.feed(input);
   const int32_t length = length_deserializer.get();
+  // Length can be negative (null value was published by client).
   if (length >= 0) {
     const absl::string_view result = {input.data(),
                                       static_cast<absl::string_view::size_type>(length)};
@@ -71,56 +76,72 @@ absl::string_view comsumeBytes(absl::string_view& input) {
   }
 }
 
-std::vector<RecordFootmark> RecordExtractorImpl::processMagic2(const std::string& topic,
+std::vector<RecordFootmark> RecordExtractorImpl::extractRecordsOutOfBatchWithMagicEqualTo2(const std::string& topic,
                                                                const int32_t partition,
-                                                               absl::string_view sv) const {
+                                                               absl::string_view data) const {
 
-  unsigned int step2 = /* CRC */ 4 + /* Attributes */ 2 + /* LastOffsetDelta */ 4 +
+  // Not going to reuse the information in these fields, because we are going to republish.
+  unsigned int ignored_fields_size = /* CRC */ 4 + /* Attributes */ 2 + /* LastOffsetDelta */ 4 +
                        /* FirstTimestamp */ 8 + /* MaxTimestamp */ 8 + /* ProducerId */ 8 +
                        /* ProducerEpoch */ 2 + /* BaseSequence */ 4;
-  if (sv.length() < step2) {
+
+  if (data.length() < ignored_fields_size) {
+    // Badly formatted record batch (underflow).
     return {};
   }
-  sv = {sv.data() + step2, sv.length() - step2};
+  data = {data.data() + ignored_fields_size, data.length() - ignored_fields_size};
 
-  Int32Deserializer count_des;
-  count_des.feed(sv);
+  // Number of records (we are still going to loop over them).
+  Int32Deserializer count_deserializer;
+  count_deserializer.feed(data);
+  if (!count_deserializer.ready()) {
+    // Badly formatted record batch (underflow).
+    return {};
+  }
+  const int32_t record_count = count_deserializer.get();
+  if (record_count < 0) {
+    // Badly formatted record batch (negative number of records).
+    return {};
+  }
+
+  // We have managed to consume all the fancy bytes, now it's time to get to records.
 
   std::vector<RecordFootmark> result;
-  while (!sv.empty()) {
+  while (!data.empty()) {
 
     // org.apache.kafka.common.record.DefaultRecord.writeTo(DataOutputStream, int, long, ByteBuffer,
     // ByteBuffer, Header[])
 
     VarInt32Deserializer length;
-    length.feed(sv);
+    length.feed(data);
     const int32_t len = length.get();
+    // check len vs data.size()
     // ENVOY_LOG(trace, "record len = {}", len);
 
-    const absl::string_view expected_end_of_record = {sv.data() + len, sv.length() - len};
+    const absl::string_view expected_end_of_record = {data.data() + len, data.length() - len};
 
     Int8Deserializer attributes;
-    attributes.feed(sv);
+    attributes.feed(data);
     VarInt64Deserializer tsDelta;
-    tsDelta.feed(sv);
+    tsDelta.feed(data);
     VarUInt32Deserializer offsetDelta;
-    offsetDelta.feed(sv);
+    offsetDelta.feed(data);
 
-    absl::string_view key = comsumeBytes(sv);
-    absl::string_view value = comsumeBytes(sv);
+    absl::string_view key = comsumeBytes(data);
+    absl::string_view value = comsumeBytes(data);
 
     VarInt32Deserializer headers_count_deserializer;
-    headers_count_deserializer.feed(sv);
+    headers_count_deserializer.feed(data);
     const int32_t headers_count = headers_count_deserializer.get();
     if (headers_count < 0) {
       // boom
     }
     for (int32_t i = 0; i < headers_count; ++i) {
-      comsumeBytes(sv); // header key
-      comsumeBytes(sv); // header value
+      comsumeBytes(data); // header key
+      comsumeBytes(data); // header value
     }
 
-    if (sv != expected_end_of_record) {
+    if (data != expected_end_of_record) {
       return {};
     }
 

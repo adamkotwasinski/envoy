@@ -42,8 +42,9 @@ private:
   std::vector<RecordFootmark> computeFootmarksForTopic(const std::string& topic,
                                                        const int32_t partition,
                                                        const Bytes& records) const;
-  std::vector<RecordFootmark> processMagic2(const std::string& topic, const int32_t partition,
-                                            absl::string_view sv) const;
+
+  // Impl note: I'm sorry for the long name.
+  std::vector<RecordFootmark> extractRecordsOutOfBatchWithMagicEqualTo2(const std::string& topic, const int32_t partition, absl::string_view sv) const;
 };
 
 /**
