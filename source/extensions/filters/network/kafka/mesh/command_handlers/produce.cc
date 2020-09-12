@@ -8,19 +8,6 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
-class RecordExtractorImpl : public RecordExtractor {
-public:
-  std::vector<RecordFootmark>
-  computeFootmarks(const std::vector<TopicProduceData>& data) const override;
-
-private:
-  std::vector<RecordFootmark> computeFootmarksForTopic(const std::string& topic,
-                                                       const int32_t partition,
-                                                       const Bytes& records) const;
-  std::vector<RecordFootmark> processMagic2(const std::string& topic, const int32_t partition,
-                                            absl::string_view sv) const;
-};
-
 std::vector<RecordFootmark>
 RecordExtractorImpl::computeFootmarks(const std::vector<TopicProduceData>& data) const {
   std::vector<RecordFootmark> result;

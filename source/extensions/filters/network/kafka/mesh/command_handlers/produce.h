@@ -33,6 +33,19 @@ public:
   computeFootmarks(const std::vector<TopicProduceData>& data) const PURE;
 };
 
+class RecordExtractorImpl : public RecordExtractor {
+public:
+  std::vector<RecordFootmark>
+  computeFootmarks(const std::vector<TopicProduceData>& data) const override;
+
+private:
+  std::vector<RecordFootmark> computeFootmarksForTopic(const std::string& topic,
+                                                       const int32_t partition,
+                                                       const Bytes& records) const;
+  std::vector<RecordFootmark> processMagic2(const std::string& topic, const int32_t partition,
+                                            absl::string_view sv) const;
+};
+
 /**
  * Kafka 'Produce' request, that is aimed at particular cluster.
  * A single Produce request coming from downstream can map into multiple entries,

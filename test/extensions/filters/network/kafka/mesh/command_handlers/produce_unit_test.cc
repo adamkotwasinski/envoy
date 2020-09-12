@@ -1,12 +1,16 @@
+#include "extensions/filters/network/kafka/external/requests.h"
 #include "extensions/filters/network/kafka/external/responses.h"
 #include "extensions/filters/network/kafka/mesh/command_handlers/produce.h"
 
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
+#include <set>
+
 using testing::_;
 using testing::Return;
 using testing::ReturnRef;
+using testing::Not;
 
 namespace Envoy {
 namespace Extensions {
@@ -202,6 +206,65 @@ TEST_F(ProduceUnitTest, ShouldIgnoreMementoFromAnotherRequest) {
   const DeliveryMemento dm = {nullptr, RdKafka::ERR_NO_ERROR, 42};
   EXPECT_FALSE(testee->accept(dm));
   EXPECT_FALSE(testee->finished());
+}
+
+// Tests for record extractor.
+
+// MATCHER_P2(HasRecords, topic, partition, "") {
+//   for (const auto record : arg) {
+//     if (record.topic_ == topic && record.partition_ == partition) {
+//       return true;
+//     }
+//   }
+//   return false;
+// }
+
+MATCHER_P3(HasRecords, topic, partition, expected, "") {
+  size_t expected_count = expected;
+  std::set<absl::string_view> saved_key_pointers = {};
+  std::set<absl::string_view> saved_value_pointers = {};
+  size_t count = 0;
+
+  for (const auto record : arg) {
+    if (record.topic_ == topic && record.partition_ == partition) {
+      saved_key_pointers.insert(record.key_);
+      saved_value_pointers.insert(record.value_);
+      ++count;
+    }
+  }
+
+  if (expected_count != count) {
+    return false;
+  }
+  if (expected_count != saved_key_pointers.size()) {
+    return false;
+  }
+  return saved_key_pointers.size() == saved_value_pointers.size();
+}
+
+TEST(RecordExtractor, shouldWork) {
+  // given
+  const RecordExtractorImpl testee;
+
+  const PartitionProduceData t1_ppd1 = { 0, Bytes(1024) };
+  const PartitionProduceData t1_ppd2 = { 1, Bytes(1024) };
+  const PartitionProduceData t1_ppd3 = { 2, Bytes(1024) };
+  const TopicProduceData tpd1 = { "topic1", { t1_ppd1, t1_ppd2, t1_ppd3 } };
+
+  // Weird input from client, protocol allows sending null value as bytes array.
+  const PartitionProduceData t2_ppd = { 20, absl::nullopt };
+  const TopicProduceData tpd2 = { "topic2", { t2_ppd } };
+
+  const std::vector<TopicProduceData> input = { tpd1, tpd2 };
+
+  // when
+  const auto result = testee.computeFootmarks(input);
+
+  // then
+  // EXPECT_THAT(result, HasRecords("topic1", 0));
+  // EXPECT_THAT(result, HasRecords("topic1", 1));
+  // EXPECT_THAT(result, HasRecords("topic1", 2));
+  EXPECT_THAT(result, HasRecords("topic2", 20, 0));
 }
 
 } // namespace
