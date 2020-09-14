@@ -61,9 +61,13 @@ RecordExtractorImpl::computeFootmarksForTopic(const std::string& topic, const in
 }
 
 // Helper function to get the data (key, value) out of record.
-absl::string_view comsumeBytes(absl::string_view& input) {
+static absl::string_view comsumeBytes(absl::string_view& input) {
   VarInt32Deserializer length_deserializer;
   length_deserializer.feed(input);
+  if (!length_deserializer.ready()) {
+    // Underflow.
+    return {};
+  }
   const int32_t length = length_deserializer.get();
   // Length can be negative (null value was published by client).
   if (length >= 0) {
@@ -76,7 +80,7 @@ absl::string_view comsumeBytes(absl::string_view& input) {
   }
 }
 
-class FirstFields : public CompositeDeserializerWith8Delegates<
+class FirstFields : public CompositeDeserializerWith9Delegates<
 std::vector<int64_t>,
 Int32Deserializer,
 Int16Deserializer,
@@ -85,6 +89,7 @@ Int64Deserializer,
 Int64Deserializer,
 Int64Deserializer,
 Int16Deserializer,
+Int32Deserializer,
 Int32Deserializer> {};
 
 std::vector<RecordFootmark> RecordExtractorImpl::extractRecordsOutOfBatchWithMagicEqualTo2(const std::string& topic,
@@ -109,6 +114,7 @@ std::vector<RecordFootmark> RecordExtractorImpl::extractRecordsOutOfBatchWithMag
     return {};
   }
 
+  /*
   // Number of records (we are still going to loop over them).
   Int32Deserializer count_deserializer;
   count_deserializer.feed(data);
@@ -118,6 +124,9 @@ std::vector<RecordFootmark> RecordExtractorImpl::extractRecordsOutOfBatchWithMag
     return {};
   }
   const int32_t record_count = count_deserializer.get();
+  */
+
+  const int32_t record_count = ff.get().back();
   if (record_count < 0) {
     // Badly formatted record batch (negative number of records).
     return {};
