@@ -108,46 +108,53 @@ std::vector<RecordFootmark> RecordExtractorImpl::extractRecordsOutOfBatchWithMag
 
   std::vector<RecordFootmark> result;
   while (!data.empty()) {
-
-    // org.apache.kafka.common.record.DefaultRecord.writeTo(DataOutputStream, int, long, ByteBuffer,
-    // ByteBuffer, Header[])
-
-    VarInt32Deserializer length;
-    length.feed(data);
-    const int32_t len = length.get();
-    // check len vs data.size()
-    // ENVOY_LOG(trace, "record len = {}", len);
-
-    const absl::string_view expected_end_of_record = {data.data() + len, data.length() - len};
-
-    Int8Deserializer attributes;
-    attributes.feed(data);
-    VarInt64Deserializer tsDelta;
-    tsDelta.feed(data);
-    VarUInt32Deserializer offsetDelta;
-    offsetDelta.feed(data);
-
-    absl::string_view key = comsumeBytes(data);
-    absl::string_view value = comsumeBytes(data);
-
-    VarInt32Deserializer headers_count_deserializer;
-    headers_count_deserializer.feed(data);
-    const int32_t headers_count = headers_count_deserializer.get();
-    if (headers_count < 0) {
-      // boom
-    }
-    for (int32_t i = 0; i < headers_count; ++i) {
-      comsumeBytes(data); // header key
-      comsumeBytes(data); // header value
-    }
-
-    if (data != expected_end_of_record) {
+    const absl::optional<RecordFootmark> record = extractRecord(topic, partition, data);
+    if (record) {
+      result.push_back(*record);
+    } else {
+      // Badly formatted record (cannot trust anything in record array).
       return {};
     }
-
-    result.emplace_back(topic, partition, key, value);
   }
   return result;
+}
+
+absl::optional<RecordFootmark> RecordExtractorImpl::extractRecord(const std::string& topic, const int32_t partition, absl::string_view& data) const {
+  // org.apache.kafka.common.record.DefaultRecord.writeTo(DataOutputStream, int, long, ByteBuffer, ByteBuffer, Header[])
+
+  VarInt32Deserializer length;
+  length.feed(data);
+  const int32_t len = length.get();
+
+  const absl::string_view expected_end_of_record = {data.data() + len, data.length() - len};
+
+  Int8Deserializer attributes;
+  attributes.feed(data);
+  VarInt64Deserializer tsDelta;
+  tsDelta.feed(data);
+  VarUInt32Deserializer offsetDelta;
+  offsetDelta.feed(data);
+
+  absl::string_view key = comsumeBytes(data);
+  absl::string_view value = comsumeBytes(data);
+
+  VarInt32Deserializer headers_count_deserializer;
+  headers_count_deserializer.feed(data);
+  const int32_t headers_count = headers_count_deserializer.get();
+  if (headers_count < 0) {
+    // boom
+  }
+  for (int32_t i = 0; i < headers_count; ++i) {
+    comsumeBytes(data); // header key
+    comsumeBytes(data); // header value
+  }
+
+  if (data == expected_end_of_record) {
+    // We have consumed everything nicely.
+    return { RecordFootmark{ topic, partition, key, value } };
+  } else {
+    return {};
+  }
 }
 
 ProduceRequestHolder::ProduceRequestHolder(AbstractRequestListener& filter,

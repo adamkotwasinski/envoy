@@ -45,6 +45,8 @@ private:
 
   // Impl note: I'm sorry for the long name.
   std::vector<RecordFootmark> extractRecordsOutOfBatchWithMagicEqualTo2(const std::string& topic, const int32_t partition, absl::string_view sv) const;
+
+  absl::optional<RecordFootmark> extractRecord(const std::string& topic, const int32_t partition, absl::string_view& data) const;
 };
 
 /**
