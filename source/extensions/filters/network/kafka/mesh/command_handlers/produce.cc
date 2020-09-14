@@ -76,7 +76,8 @@ absl::string_view comsumeBytes(absl::string_view& input) {
   }
 }
 
-class FirstFields : public CompositeDeserializerWith8Delegates<std::vector<int64_t>,
+class FirstFields : public CompositeDeserializerWith8Delegates<
+std::vector<int64_t>,
 Int32Deserializer,
 Int16Deserializer,
 Int32Deserializer,
@@ -90,10 +91,10 @@ std::vector<RecordFootmark> RecordExtractorImpl::extractRecordsOutOfBatchWithMag
                                                                const int32_t partition,
                                                                absl::string_view data) const {
 
-  // Not going to reuse the information in these fields, because we are going to republish.
-  unsigned int ignored_fields_size = /* CRC */ 4 + /* Attributes */ 2 + /* LastOffsetDelta */ 4 +
-                       /* FirstTimestamp */ 8 + /* MaxTimestamp */ 8 + /* ProducerId */ 8 +
-                       /* ProducerEpoch */ 2 + /* BaseSequence */ 4;
+  // // Not going to reuse the information in these fields, because we are going to republish.
+  // unsigned int ignored_fields_size = /* CRC */ 4 + /* Attributes */ 2 + /* LastOffsetDelta */ 4 +
+  //                      /* FirstTimestamp */ 8 + /* MaxTimestamp */ 8 + /* ProducerId */ 8 +
+  //                      /* ProducerEpoch */ 2 + /* BaseSequence */ 4;
 
   // if (data.length() < ignored_fields_size) {
   //   // Badly formatted record batch (underflow).
