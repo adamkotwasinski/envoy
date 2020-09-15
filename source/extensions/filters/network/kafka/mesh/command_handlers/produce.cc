@@ -80,57 +80,20 @@ static absl::string_view comsumeBytes(absl::string_view& input) {
   }
 }
 
-class FirstFields : public CompositeDeserializerWith9Delegates<
-std::vector<int64_t>,
-Int32Deserializer,
-Int16Deserializer,
-Int32Deserializer,
-Int64Deserializer,
-Int64Deserializer,
-Int64Deserializer,
-Int16Deserializer,
-Int32Deserializer,
-Int32Deserializer> {};
-
 std::vector<RecordFootmark> RecordExtractorImpl::extractRecordsOutOfBatchWithMagicEqualTo2(const std::string& topic,
                                                                const int32_t partition,
                                                                absl::string_view data) const {
 
-  // // Not going to reuse the information in these fields, because we are going to republish.
-  // unsigned int ignored_fields_size = /* CRC */ 4 + /* Attributes */ 2 + /* LastOffsetDelta */ 4 +
-  //                      /* FirstTimestamp */ 8 + /* MaxTimestamp */ 8 + /* ProducerId */ 8 +
-  //                      /* ProducerEpoch */ 2 + /* BaseSequence */ 4;
+  // Not going to reuse the information in these fields, because we are going to republish.
+  unsigned int ignored_fields_size = /* CRC */ 4 + /* Attributes */ 2 + /* LastOffsetDelta */ 4 +
+                       /* FirstTimestamp */ 8 + /* MaxTimestamp */ 8 + /* ProducerId */ 8 +
+                       /* ProducerEpoch */ 2 + /* BaseSequence */ 4 + /* RecordCount */ 4;
 
-  // if (data.length() < ignored_fields_size) {
-  //   // Badly formatted record batch (underflow).
-  //   return {};
-  // }
-  // data = {data.data() + ignored_fields_size, data.length() - ignored_fields_size};
-
-  FirstFields ff;
-  ff.feed(data);
-  if (!ff.ready()) {
+  if (data.length() < ignored_fields_size) {
     // Badly formatted record batch (underflow).
     return {};
   }
-
-  /*
-  // Number of records (we are still going to loop over them).
-  Int32Deserializer count_deserializer;
-  count_deserializer.feed(data);
-
-  if (!count_deserializer.ready()) {
-    // Badly formatted record batch (underflow).
-    return {};
-  }
-  const int32_t record_count = count_deserializer.get();
-  */
-
-  const int32_t record_count = ff.get().back();
-  if (record_count < 0) {
-    // Badly formatted record batch (negative number of records).
-    return {};
-  }
+  data = {data.data() + ignored_fields_size, data.length() - ignored_fields_size};
 
   // We have managed to consume all the fancy bytes, now it's time to get to records.
 
@@ -141,7 +104,7 @@ std::vector<RecordFootmark> RecordExtractorImpl::extractRecordsOutOfBatchWithMag
       result.push_back(*record);
     } else {
       // Badly formatted record (cannot trust anything in record array).
-      return {};
+      throw 13;
     }
   }
   return result;
