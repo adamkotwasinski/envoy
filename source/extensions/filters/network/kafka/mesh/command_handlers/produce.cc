@@ -60,26 +60,6 @@ RecordExtractorImpl::computeFootmarksForTopic(const std::string& topic, const in
   }
 }
 
-// Helper function to get the data (key, value) out of record.
-static absl::string_view comsumeBytes(absl::string_view& input) {
-  VarInt32Deserializer length_deserializer;
-  length_deserializer.feed(input);
-  if (!length_deserializer.ready()) {
-    // Underflow.
-    return {};
-  }
-  const int32_t length = length_deserializer.get();
-  // Length can be negative (null value was published by client).
-  if (length >= 0) {
-    const absl::string_view result = {input.data(),
-                                      static_cast<absl::string_view::size_type>(length)};
-    input = {input.data() + length, input.length() - length};
-    return result;
-  } else {
-    return {};
-  }
-}
-
 std::vector<RecordFootmark> RecordExtractorImpl::extractRecordsOutOfBatchWithMagicEqualTo2(const std::string& topic,
                                                                const int32_t partition,
                                                                absl::string_view data) const {
@@ -108,6 +88,32 @@ std::vector<RecordFootmark> RecordExtractorImpl::extractRecordsOutOfBatchWithMag
     }
   }
   return result;
+}
+
+// Helper function to get the data (key, value) out of record.
+static absl::string_view comsumeBytes(absl::string_view& input) {
+  VarInt32Deserializer length_deserializer;
+  length_deserializer.feed(input);
+  if (!length_deserializer.ready()) {
+    // Underflow.
+    throw 13;
+  }
+  const int32_t length = length_deserializer.get();
+  // Length can be negative (null value was published by client).
+  if (-1 == length) {
+    return {};
+  }
+
+  if (length >= 0) {
+    if (length > input.size()) {
+      throw 13;
+    }
+    const absl::string_view result = {input.data(), static_cast<absl::string_view::size_type>(length)};
+    input = {input.data() + length, input.length() - length};
+    return result;
+  } else {
+    throw 13;
+  }
 }
 
 absl::optional<RecordFootmark> RecordExtractorImpl::extractRecord(const std::string& topic, const int32_t partition, absl::string_view& data) const {
