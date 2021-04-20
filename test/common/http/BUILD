@@ -1,3 +1,5 @@
+licenses(["notice"])  # Apache 2
+
 load(
     "//bazel:envoy_build_system.bzl",
     "envoy_benchmark_test",
@@ -9,8 +11,6 @@ load(
     "envoy_proto_library",
     "envoy_select_enable_http3",
 )
-
-licenses(["notice"])  # Apache 2
 
 envoy_package()
 
