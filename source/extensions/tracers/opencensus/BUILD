@@ -1,3 +1,5 @@
+licenses(["notice"])  # Apache 2
+
 load(
     "//bazel:envoy_build_system.bzl",
     "envoy_cc_extension",
@@ -5,8 +7,6 @@ load(
     "envoy_extension_package",
     "envoy_select_google_grpc",
 )
-
-licenses(["notice"])  # Apache 2
 
 # Trace driver for OpenCensus: https://opencensus.io/
 
