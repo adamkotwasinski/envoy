@@ -31,7 +31,7 @@ public:
                               absl::string_view value) override {
     ASSERT_IS_MAIN_OR_TEST_THREAD();
     (*dynamic_context_[resource_type_url]
-          .mutable_params())[toStdStringView(key)] = // NOLINT(std::string_view)
+          .mutable_params())[std::string(key)] = // NOLINT(std::string_view)
         toStdStringView(value);                      // NOLINT(std::string_view)
     update_cb_helper_.runCallbacks(resource_type_url);
   }
@@ -39,7 +39,7 @@ public:
                                 absl::string_view key) override {
     ASSERT_IS_MAIN_OR_TEST_THREAD();
     dynamic_context_[resource_type_url].mutable_params()->erase(
-        toStdStringView(key)); // NOLINT(std::string_view)
+        std::string(key)); // NOLINT(std::string_view)
     update_cb_helper_.runCallbacks(resource_type_url);
   }
   ABSL_MUST_USE_RESULT Common::CallbackHandlePtr
