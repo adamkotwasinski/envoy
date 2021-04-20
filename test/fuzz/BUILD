@@ -1,3 +1,5 @@
+licenses(["notice"])  # Apache 2
+
 load(
     "//bazel:envoy_build_system.bzl",
     "envoy_cc_test",
@@ -9,8 +11,6 @@ load(
     "@rules_fuzzing//fuzzing:cc_defs.bzl",
     "cc_fuzzing_engine",
 )
-
-licenses(["notice"])  # Apache 2
 
 envoy_package()
 

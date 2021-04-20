@@ -1,10 +1,10 @@
+licenses(["notice"])  # Apache 2
+
 load(
     "//bazel:envoy_build_system.bzl",
     "envoy_cc_library",
     "envoy_package",
 )
-
-licenses(["notice"])  # Apache 2
 
 # TODO(mattklein123): Default visibility for this package should not be public. We should have
 # default by private to within this package and package tests, and then only expose the libraries
