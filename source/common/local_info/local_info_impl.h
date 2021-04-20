@@ -55,7 +55,7 @@ public:
         dynamic_update_callback_handle_(context_provider_.addDynamicContextUpdateCallback(
             [this](absl::string_view resource_type_url) {
               (*node_.mutable_dynamic_parameters())
-                  [toStdStringView(resource_type_url)] // NOLINT(std::string_view)
+                  [std::string(resource_type_url)] // NOLINT(std::string_view)
                       .CopyFrom(context_provider_.dynamicContext(resource_type_url));
             })) {}
 
