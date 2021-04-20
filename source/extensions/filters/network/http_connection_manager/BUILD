@@ -1,3 +1,5 @@
+licenses(["notice"])  # Apache 2
+
 load(
     "//bazel:envoy_build_system.bzl",
     "envoy_cc_extension",
@@ -5,8 +7,6 @@ load(
     "envoy_extension_package",
     "envoy_select_enable_http3",
 )
-
-licenses(["notice"])  # Apache 2
 
 # L4 network filter that implements HTTP protocol handling and filtering. This filter internally
 # drives all of the L7 HTTP filters.
