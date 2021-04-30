@@ -1,3 +1,5 @@
+licenses(["notice"])  # Apache 2
+
 load(
     "//bazel:envoy_build_system.bzl",
     "envoy_cc_extension",
@@ -5,8 +7,6 @@ load(
     "envoy_extension_package",
 )
 load("//bazel:envoy_internal.bzl", "envoy_external_dep_path")
-
-licenses(["notice"])  # Apache 2
 
 # Kafka-mesh network filter.
 # Mesh filter public docs: docs/root/configuration/listeners/network_filters/kafka_mesh_filter.rst
