@@ -699,10 +699,18 @@ class Complex(TypeSpecification):
 
 
 class RenderingHelper:
-    """
-  Helper for jinja templates.
-  """
 
+    """
+    Utility function that allows us to process names in jinja easier.
+    """
+    @staticmethod
+    def camel_case_to_snake_case(str):
+        import re
+        return re.sub('(?!^)([A-Z]+)', r'_\1', str)
+
+    """
+    Helper for jinja templates.
+    """
     @staticmethod
     def get_template(template):
         import jinja2
@@ -713,4 +721,5 @@ class RenderingHelper:
         env = jinja2.Environment(
             loader=jinja2.FileSystemLoader(
                 searchpath=os.path.dirname(os.path.abspath(sys.argv[0]))))
+        env.filters['camel_case_to_snake_case'] = RenderingHelper.camel_case_to_snake_case
         return env.get_template(template)
