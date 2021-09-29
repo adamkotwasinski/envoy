@@ -59,7 +59,6 @@ envoy_cc_library(
         "//contrib/kafka/filters/network/source:kafka_request_parser_lib",
         "//contrib/kafka/filters/network/source:kafka_response_parser_lib",
         "//contrib/kafka/filters/network/source/mesh:abstract_command_lib",
-        "//contrib/kafka/filters/network/source/mesh:fetch_purger_lib",
         "//contrib/kafka/filters/network/source/mesh:shared_consumer_manager_lib",
         "//source/common/common:minimal_logger_lib",
     ],

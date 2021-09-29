@@ -4,6 +4,7 @@
 
 #include "contrib/kafka/filters/network/source/external/requests.h"
 #include "contrib/kafka/filters/network/source/mesh/abstract_command.h"
+#include "contrib/kafka/filters/network/source/mesh/shared_consumer_manager.h"
 #include "contrib/kafka/filters/network/source/mesh/upstream_config.h"
 #include "contrib/kafka/filters/network/source/mesh/upstream_kafka_facade.h"
 #include "contrib/kafka/filters/network/source/request_codec.h"
@@ -20,7 +21,8 @@ namespace Mesh {
 class RequestProcessor : public RequestCallback, private Logger::Loggable<Logger::Id::kafka> {
 public:
   RequestProcessor(AbstractRequestListener& origin, const UpstreamKafkaConfiguration& configuration,
-                   UpstreamKafkaFacade& upstream_kafka_facade);
+                   UpstreamKafkaFacade& upstream_kafka_facade,
+                   RecordCallbackProcessor& record_callback_processor);
 
   // RequestCallback
   void onMessage(AbstractRequestSharedPtr arg) override;
@@ -36,6 +38,7 @@ private:
   AbstractRequestListener& origin_;
   const UpstreamKafkaConfiguration& configuration_;
   UpstreamKafkaFacade& upstream_kafka_facade_;
+  RecordCallbackProcessor& record_callback_processor_;
 };
 
 } // namespace Mesh
