@@ -31,6 +31,9 @@ public:
   virtual std::unique_ptr<RdKafka::Producer> createProducer(RdKafka::Conf* conf,
                                                             std::string& errstr) const PURE;
 
+  virtual std::unique_ptr<RdKafka::KafkaConsumer>  createConsumer(RdKafka::Conf*,
+                                                                  std::string& errstr) const PURE;
+
   // Returned type is a raw pointer, as librdkafka does the deletion on successful produce call.
   virtual RdKafka::Headers* convertHeaders(
       const std::vector<std::pair<absl::string_view, absl::string_view>>& headers) const PURE;
@@ -104,6 +107,29 @@ private:
 };
 
 using RichKafkaProducerPtr = std::unique_ptr<RichKafkaProducer>;
+
+// === consumer !!! ====
+
+using RawKafkaConfig = RawKafkaProducerConfig;
+
+class RichKafkaConsumer : public KafkaConsumer, private Logger::Loggable<Logger::Id::kafka> {
+public:
+  // Main constructor.
+  RichKafkaConsumer(const RawKafkaConfig& configuration);
+
+  // Visible for testing (allows injection of LibRdKafkaUtils).
+  RichKafkaConsumer(const RawKafkaConfig& configuration, const LibRdKafkaUtils& utils);
+
+  // More complex than usual - closes the real Kafka consumer.
+  ~RichKafkaConsumer() override;
+
+  void poll() override;
+
+private:
+
+  std::unique_ptr<RdKafka::KafkaConsumer> consumer_;
+
+};
 
 } // namespace Mesh
 } // namespace Kafka
