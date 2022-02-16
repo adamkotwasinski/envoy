@@ -74,6 +74,7 @@ envoy_cc_library(
         "//contrib/kafka/filters/network/source/mesh/command_handlers:metadata_lib",
         "//contrib/kafka/filters/network/source/mesh/command_handlers:produce_lib",
         "//source/common/common:minimal_logger_lib",
+        "//contrib/kafka/filters/network/source/mesh:filter_consumer_manager_impl_lib",
     ],
 )
 
@@ -120,6 +121,18 @@ envoy_cc_library(
     ],
     tags = ["skip_on_windows"],
     deps = [
+    ],
+)
+
+envoy_cc_library(
+    name = "filter_consumer_manager_impl_lib",
+    srcs =  [ "filter_consumer_manager_impl.cc" ],
+    hdrs = [ "filter_consumer_manager_impl.h" ],
+    tags = ["skip_on_windows"],
+    deps = [
+        ":upstream_kafka_client_impl_lib",
+        ":upstream_kafka_client_lib",
+        "//source/common/common:minimal_logger_lib",
     ],
 )
 

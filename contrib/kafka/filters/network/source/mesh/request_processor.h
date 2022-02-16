@@ -7,6 +7,7 @@
 #include "contrib/kafka/filters/network/source/mesh/upstream_config.h"
 #include "contrib/kafka/filters/network/source/mesh/upstream_kafka_facade.h"
 #include "contrib/kafka/filters/network/source/request_codec.h"
+#include "contrib/kafka/filters/network/source/mesh/filter_consumer_manager_impl.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -36,6 +37,7 @@ private:
   AbstractRequestListener& origin_;
   const UpstreamKafkaConfiguration& configuration_;
   UpstreamKafkaFacade& upstream_kafka_facade_;
+  std::unique_ptr<FilterConsumerManager> consumer_manager_;
 };
 
 } // namespace Mesh

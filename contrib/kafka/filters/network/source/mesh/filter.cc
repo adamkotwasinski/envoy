@@ -17,12 +17,18 @@ namespace Mesh {
 KafkaMeshFilter::KafkaMeshFilter(const UpstreamKafkaConfiguration& configuration,
                                  UpstreamKafkaFacade& upstream_kafka_facade)
     : KafkaMeshFilter{std::make_shared<RequestDecoder>(std::vector<RequestCallbackSharedPtr>(
-          {std::make_shared<RequestProcessor>(*this, configuration, upstream_kafka_facade)}))} {}
+          {std::make_shared<RequestProcessor>(*this, configuration, upstream_kafka_facade)}))} {
+
+            ENVOY_LOG(info, "mesh-filter ctor");
+          }
 
 KafkaMeshFilter::KafkaMeshFilter(RequestDecoderSharedPtr request_decoder)
     : request_decoder_{request_decoder} {}
 
-KafkaMeshFilter::~KafkaMeshFilter() { abandonAllInFlightRequests(); }
+KafkaMeshFilter::~KafkaMeshFilter() { 
+  ENVOY_LOG(info, "mesh-filter dtor");
+  abandonAllInFlightRequests();
+}
 
 Network::FilterStatus KafkaMeshFilter::onNewConnection() { return Network::FilterStatus::Continue; }
 
