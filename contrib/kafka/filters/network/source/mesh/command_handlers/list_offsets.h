@@ -2,6 +2,7 @@
 
 #include "contrib/kafka/filters/network/source/external/requests.h"
 #include "contrib/kafka/filters/network/source/mesh/abstract_command.h"
+#include "contrib/kafka/filters/network/source/mesh/filter_consumer_manager_impl.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -12,6 +13,7 @@ namespace Mesh {
 class ListOffsetsRequestHolder : public BaseInFlightRequest {
 public:
   ListOffsetsRequestHolder(AbstractRequestListener& filter,
+                           FilterConsumerManager& consumer_manager,
                            const std::shared_ptr<Request<ListOffsetsRequest>> request);
 
   void startProcessing() override;
@@ -21,6 +23,8 @@ public:
   AbstractResponseSharedPtr computeAnswer() const override;
 
 private:
+  // Provides access to upstream-pointing consumers.
+  FilterConsumerManager& consumer_manager_;
   // Original request.
   const std::shared_ptr<Request<ListOffsetsRequest>> request_;
 };

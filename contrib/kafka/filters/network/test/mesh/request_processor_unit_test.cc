@@ -94,7 +94,7 @@ TEST_F(RequestProcessorTest, ShouldProcessApiVersionsRequest) {
 
 TEST_F(RequestProcessorTest, ShouldHandleUnsupportedRequest) {
   // given
-  const RequestHeader header = {LIST_OFFSETS_REQUEST_API_KEY, 0, 0, absl::nullopt};
+  const RequestHeader header = {LIST_TRANSACTIONS_REQUEST_API_KEY, 0, 0, absl::nullopt};
   const ListOffsetsRequest data = {0, {}};
   const auto message = std::make_shared<Request<ListOffsetsRequest>>(header, data);
 
