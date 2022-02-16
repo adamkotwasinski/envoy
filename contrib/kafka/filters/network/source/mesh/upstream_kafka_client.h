@@ -75,6 +75,13 @@ public:
 
 using KafkaProducerPtr = std::unique_ptr<KafkaProducer>;
 
+class KafkaConsumer {
+public:
+  virtual ~KafkaConsumer() = default;
+
+  virtual void poll() PURE;
+};
+
 } // namespace Mesh
 } // namespace Kafka
 } // namespace NetworkFilters

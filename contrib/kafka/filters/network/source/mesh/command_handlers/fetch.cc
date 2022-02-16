@@ -8,13 +8,32 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
-FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter, const std::shared_ptr<Request<FetchRequest>> request): BaseInFlightRequest{filter}, request_{request} {}
+FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter, FilterConsumerManager& consumer_manager, const std::shared_ptr<Request<FetchRequest>> request): 
+BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, request_{request} {
+}
 
 void FetchRequestHolder::startProcessing() { notifyFilter(); }
 
 bool FetchRequestHolder::finished() const { return true; }
 
 AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
+
+  ENVOY_LOG(info, "Fetch request received");
+  std::ostringstream debug;
+
+  const std::vector<FetchTopic> topics = request_->data_.topics_;
+  for (const auto topic : topics) {
+    const std::string topic_name = topic.topic_;
+    const std::vector<FetchPartition> partitions = topic.partitions_;
+    for (const auto partition : partitions) {
+      const int32_t partition_id = partition.partition_;
+      const int64_t fetch_offset = partition.fetch_offset_;
+      ENVOY_LOG(trace, "Fetch for {}-{} / offset = {}", topic_name, partition_id, fetch_offset);
+      debug << topic_name << "-" << partition_id << "=" << fetch_offset << ", ";
+    }
+  }
+  ENVOY_LOG(info, "fetch: {}", debug.str());
+
   const auto& header = request_->request_header_;
   const ResponseMetadata metadata = {header.api_key_, header.api_version_, header.correlation_id_};
 
