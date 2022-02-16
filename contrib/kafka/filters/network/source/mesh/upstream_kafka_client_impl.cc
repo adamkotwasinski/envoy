@@ -29,6 +29,12 @@ class LibRdKafkaUtilsImpl : public LibRdKafkaUtils {
   }
 
   // LibRdKafkaUtils
+  std::unique_ptr<RdKafka::KafkaConsumer> createConsumer(RdKafka::Conf* conf,
+                                                    std::string& errstr) const override {
+    return std::unique_ptr<RdKafka::KafkaConsumer>(RdKafka::KafkaConsumer::create(conf, errstr));
+  }
+
+  // LibRdKafkaUtils
   RdKafka::Headers* convertHeaders(
       const std::vector<std::pair<absl::string_view, absl::string_view>>& headers) const override {
     RdKafka::Headers* result = RdKafka::Headers::create();
@@ -189,6 +195,48 @@ void RichKafkaProducer::processDelivery(const DeliveryMemento& memento) {
 std::list<ProduceFinishCbSharedPtr>& RichKafkaProducer::getUnfinishedRequestsForTest() {
   return unfinished_produce_requests_;
 }
+
+RichKafkaConsumer::RichKafkaConsumer(const RawKafkaConfig& configuration): RichKafkaConsumer( configuration,   LibRdKafkaUtilsImpl::getDefaultInstance()){};
+
+RichKafkaConsumer::RichKafkaConsumer(const RawKafkaConfig& configuration, const LibRdKafkaUtils& utils)   {
+
+  // Create producer configuration object.
+  std::unique_ptr<RdKafka::Conf> conf =   std::unique_ptr<RdKafka::Conf>(RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL));
+  std::string errstr;
+
+  // Setup producer custom properties.
+  for (const auto& e : configuration) {
+    if (utils.setConfProperty(*conf, e.first, e.second, errstr) != RdKafka::Conf::CONF_OK) {
+      throw EnvoyException(absl::StrCat("Could not set consumer property [", e.first, "] to [",  e.second, "]:", errstr));
+    }
+  }
+
+  // Finally, we create the producer.
+  consumer_ = utils.createConsumer(conf.get(), errstr);
+  if (!consumer_) {
+    throw EnvoyException(absl::StrCat("Could not create consumer:", errstr));
+  }
+
+}
+
+RichKafkaConsumer::~RichKafkaConsumer() {
+  ENVOY_LOG(info, "Closing Kafka consumer");
+  consumer_->close();
+  ENVOY_LOG(info, "Kafka consumer closed succesfully");
+}
+
+void RichKafkaConsumer::poll() {
+  ENVOY_LOG(info, "poll invoked");
+  RdKafka::Message* message = consumer_->consume(1000);
+  if (0 == message->err()) {
+    ENVOY_LOG(info, "received message {}", message->offset());
+  } else {
+    ENVOY_LOG(info, "poll error: {}/{}", message->err(), message->errstr());
+  }
+  delete message;
+}
+
+
 
 } // namespace Mesh
 } // namespace Kafka
