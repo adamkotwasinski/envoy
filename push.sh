@@ -9,5 +9,5 @@ then
 else
 	echo "pushing dev"
 	git push github HEAD:refs/heads/${BRANCH}-dev -f
-	git push github HEAD~3:refs/heads/${BRANCH} -f
+	git push github HEAD~4:refs/heads/${BRANCH} -f
 fi
