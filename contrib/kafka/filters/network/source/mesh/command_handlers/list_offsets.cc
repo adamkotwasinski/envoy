@@ -9,7 +9,7 @@ namespace Kafka {
 namespace Mesh {
 
 ListOffsetsRequestHolder::ListOffsetsRequestHolder(
-    AbstractRequestListener& filter, FilterConsumerManager& consumer_manager, const std::shared_ptr<Request<ListOffsetsRequest>> request)
+    AbstractRequestListener& filter, SharedConsumerManager& consumer_manager, const std::shared_ptr<Request<ListOffsetsRequest>> request)
     : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, request_{request} {}
 
 void ListOffsetsRequestHolder::startProcessing() { notifyFilter(); }

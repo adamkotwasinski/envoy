@@ -2,7 +2,7 @@
 
 #include "contrib/kafka/filters/network/source/external/requests.h"
 #include "contrib/kafka/filters/network/source/mesh/abstract_command.h"
-#include "contrib/kafka/filters/network/source/mesh/filter_consumer_manager_impl.h"
+#include "contrib/kafka/filters/network/source/mesh/shared_consumer_manager.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -12,7 +12,7 @@ namespace Mesh {
 
 class FetchRequestHolder : public BaseInFlightRequest {
 public:
-  FetchRequestHolder(AbstractRequestListener& filter, FilterConsumerManager& consumer_manager, const std::shared_ptr<Request<FetchRequest>> request);
+  FetchRequestHolder(AbstractRequestListener& filter, SharedConsumerManager& consumer_manager, const std::shared_ptr<Request<FetchRequest>> request);
 
   void startProcessing() override;
 
@@ -22,7 +22,7 @@ public:
 
 private:
   // Provides access to upstream-pointing consumers.
-  FilterConsumerManager& consumer_manager_;
+  SharedConsumerManager& consumer_manager_;
   // Original request.
   const std::shared_ptr<Request<FetchRequest>> request_;
 };

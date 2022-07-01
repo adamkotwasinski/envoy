@@ -25,6 +25,8 @@ envoy_cc_contrib_extension(
         "//bazel:windows": [],
         "//conditions:default": [
             ":filter_lib",
+            ":shared_consumer_manager_lib",
+            ":shared_consumer_manager_impl_lib",
             ":upstream_config_lib",
             ":upstream_kafka_facade_lib",
         ],
@@ -41,6 +43,7 @@ envoy_cc_library(
     deps = [
         ":abstract_command_lib",
         ":request_processor_lib",
+        ":shared_consumer_manager_lib",
         ":upstream_config_lib",
         ":upstream_kafka_facade_lib",
         "//contrib/kafka/filters/network/source:kafka_request_codec_lib",
@@ -74,7 +77,7 @@ envoy_cc_library(
         "//contrib/kafka/filters/network/source/mesh/command_handlers:metadata_lib",
         "//contrib/kafka/filters/network/source/mesh/command_handlers:produce_lib",
         "//source/common/common:minimal_logger_lib",
-        "//contrib/kafka/filters/network/source/mesh:filter_consumer_manager_impl_lib",
+        "//contrib/kafka/filters/network/source/mesh:shared_consumer_manager_impl_lib",
     ],
 )
 
@@ -113,25 +116,25 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
-    name = "inbound_record_lib",
-    srcs = [
-    ],
-    hdrs = [
-        "inbound_record.h",
-    ],
+    name = "shared_consumer_manager_lib",
+    srcs =  [],
+    hdrs = [ "shared_consumer_manager.h" ],
     tags = ["skip_on_windows"],
     deps = [
+        ":upstream_config_lib",
     ],
 )
 
 envoy_cc_library(
-    name = "filter_consumer_manager_impl_lib",
-    srcs =  [ "filter_consumer_manager_impl.cc" ],
-    hdrs = [ "filter_consumer_manager_impl.h" ],
+    name = "shared_consumer_manager_impl_lib",
+    srcs =  [ "shared_consumer_manager_impl.cc" ],
+    hdrs = [ "shared_consumer_manager_impl.h" ],
     tags = ["skip_on_windows"],
     deps = [
+        ":upstream_config_lib",
         ":upstream_kafka_client_impl_lib",
         ":upstream_kafka_client_lib",
+        ":shared_consumer_manager_lib",
         "//source/common/common:minimal_logger_lib",
     ],
 )
@@ -174,36 +177,6 @@ envoy_cc_library(
         ":librdkafka_utils_impl_lib",
         ":outbound_record_lib",
         ":upstream_kafka_client_lib",
-        "//envoy/event:dispatcher_interface",
-        "//source/common/common:minimal_logger_lib",
-    ],
-)
-
-envoy_cc_library(
-    name = "upstream_kafka_consumer_lib",
-    srcs = [
-    ],
-    hdrs = [
-        "upstream_kafka_consumer.h",
-    ],
-    tags = ["skip_on_windows"],
-    deps = [
-        ":inbound_record_lib",
-    ],
-)
-
-envoy_cc_library(
-    name = "upstream_kafka_consumer_impl_lib",
-    srcs = [
-        "upstream_kafka_consumer_impl.cc",
-    ],
-    hdrs = [
-        "upstream_kafka_consumer_impl.h",
-    ],
-    tags = ["skip_on_windows"],
-    deps = [
-        ":librdkafka_utils_impl_lib",
-        ":upstream_kafka_consumer_lib",
         "//envoy/event:dispatcher_interface",
         "//source/common/common:minimal_logger_lib",
     ],

@@ -59,7 +59,7 @@ envoy_cc_library(
         "//contrib/kafka/filters/network/source:kafka_response_parser_lib",
         "//contrib/kafka/filters/network/source/mesh:abstract_command_lib",
         "//source/common/common:minimal_logger_lib",
-        "//contrib/kafka/filters/network/source/mesh:filter_consumer_manager_impl_lib",
+        "//contrib/kafka/filters/network/source/mesh:shared_consumer_manager_impl_lib",
     ],
 )
 
@@ -77,7 +77,7 @@ envoy_cc_library(
         "//contrib/kafka/filters/network/source:kafka_response_parser_lib",
         "//contrib/kafka/filters/network/source/mesh:abstract_command_lib",
         "//source/common/common:minimal_logger_lib",
-        "//contrib/kafka/filters/network/source/mesh:filter_consumer_manager_impl_lib",
+        "//contrib/kafka/filters/network/source/mesh:shared_consumer_manager_lib",
     ],
 )
 
