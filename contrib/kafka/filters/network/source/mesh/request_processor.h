@@ -7,7 +7,7 @@
 #include "contrib/kafka/filters/network/source/mesh/upstream_config.h"
 #include "contrib/kafka/filters/network/source/mesh/upstream_kafka_facade.h"
 #include "contrib/kafka/filters/network/source/request_codec.h"
-#include "contrib/kafka/filters/network/source/mesh/filter_consumer_manager_impl.h"
+#include "contrib/kafka/filters/network/source/mesh/shared_consumer_manager.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -21,7 +21,7 @@ namespace Mesh {
 class RequestProcessor : public RequestCallback, private Logger::Loggable<Logger::Id::kafka> {
 public:
   RequestProcessor(AbstractRequestListener& origin, const UpstreamKafkaConfiguration& configuration,
-                   UpstreamKafkaFacade& upstream_kafka_facade);
+                   UpstreamKafkaFacade& upstream_kafka_facade, SharedConsumerManager& shared_consumer_manager);
 
   // RequestCallback
   void onMessage(AbstractRequestSharedPtr arg) override;
@@ -37,7 +37,7 @@ private:
   AbstractRequestListener& origin_;
   const UpstreamKafkaConfiguration& configuration_;
   UpstreamKafkaFacade& upstream_kafka_facade_;
-  std::unique_ptr<FilterConsumerManager> consumer_manager_;
+  SharedConsumerManager& shared_consumer_manager_;
 };
 
 } // namespace Mesh
