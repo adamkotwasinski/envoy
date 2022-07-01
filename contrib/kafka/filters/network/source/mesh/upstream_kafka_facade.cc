@@ -84,6 +84,10 @@ UpstreamKafkaFacadeImpl::UpstreamKafkaFacadeImpl(const UpstreamKafkaConfiguratio
   tls_->set(cb);
 }
 
+UpstreamKafkaFacadeImpl::~UpstreamKafkaFacadeImpl() {
+  ENVOY_LOG(info, "destroying facade");
+}
+
 // Return KafkaProducer instance that is local to given thread, via ThreadLocalKafkaFacade.
 KafkaProducer& UpstreamKafkaFacadeImpl::getProducerForTopic(const std::string& topic) {
   return tls_->getTyped<ThreadLocalKafkaFacade>().getProducerForTopic(topic);

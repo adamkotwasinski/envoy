@@ -39,9 +39,14 @@ struct ClusterConfig {
   // producer property.
   std::map<std::string, std::string> upstream_producer_properties_;
 
+  // This map always contains entry with key 'bootstrap.servers', as this is the only mandatory
+  // consumer property.
+  std::map<std::string, std::string> upstream_consumer_properties_;
+
   bool operator==(const ClusterConfig& rhs) const {
     return name_ == rhs.name_ && partition_count_ == rhs.partition_count_ &&
-           upstream_producer_properties_ == rhs.upstream_producer_properties_;
+           upstream_producer_properties_ == rhs.upstream_producer_properties_ &&
+           upstream_consumer_properties_ == rhs.upstream_consumer_properties_;
   }
 };
 
