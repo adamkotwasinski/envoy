@@ -16,11 +16,12 @@ namespace Mesh {
 
 RequestProcessor::RequestProcessor(AbstractRequestListener& origin,
                                    const UpstreamKafkaConfiguration& configuration,
-                                   UpstreamKafkaFacade& upstream_kafka_facade)
+                                   UpstreamKafkaFacade& upstream_kafka_facade,
+                                   SharedConsumerManager& shared_consumer_manager)
     : origin_{origin}, 
       configuration_{configuration},
       upstream_kafka_facade_{upstream_kafka_facade},
-      consumer_manager_{std::make_unique<FilterConsumerManagerImpl>() } {}
+      shared_consumer_manager_{shared_consumer_manager} {}
 
 // Helper function. Throws a nice message. Filter will react by closing the connection.
 static void throwOnUnsupportedRequest(const std::string& reason, const RequestHeader& header) {
@@ -58,12 +59,12 @@ void RequestProcessor::process(const std::shared_ptr<Request<ProduceRequest>> re
 }
 
 void RequestProcessor::process(const std::shared_ptr<Request<FetchRequest>> request) const {
-  auto res = std::make_shared<FetchRequestHolder>(origin_, *consumer_manager_, request);
+  auto res = std::make_shared<FetchRequestHolder>(origin_, shared_consumer_manager_, request);
   origin_.onRequest(res);
 }
 
 void RequestProcessor::process(const std::shared_ptr<Request<ListOffsetsRequest>> request) const {
-  auto res = std::make_shared<ListOffsetsRequestHolder>(origin_, *consumer_manager_, request);
+  auto res = std::make_shared<ListOffsetsRequestHolder>(origin_, shared_consumer_manager_, request);
   origin_.onRequest(res);
 }
 

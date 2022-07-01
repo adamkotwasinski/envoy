@@ -43,8 +43,12 @@ UpstreamKafkaConfigurationImpl::UpstreamKafkaConfigurationImpl(const KafkaMeshPr
         upstream_cluster_definition.producer_config().begin(),
         upstream_cluster_definition.producer_config().end()};
     producer_configs["bootstrap.servers"] = upstream_cluster_definition.bootstrap_servers();
+    std::map<std::string, std::string> consumer_configs = {};
+    consumer_configs["bootstrap.servers"] = upstream_cluster_definition.bootstrap_servers();
+    consumer_configs["group.id"] = "envoy";
+
     ClusterConfig cluster_config = {cluster_name, upstream_cluster_definition.partition_count(),
-                                    producer_configs};
+                                    producer_configs, consumer_configs};
     cluster_name_to_cluster_config[cluster_name] = cluster_config;
   }
 
