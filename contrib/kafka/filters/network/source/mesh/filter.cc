@@ -15,12 +15,13 @@ namespace Kafka {
 namespace Mesh {
 
 KafkaMeshFilter::KafkaMeshFilter(const UpstreamKafkaConfiguration& configuration,
-                                 UpstreamKafkaFacade& upstream_kafka_facade)
+                                 UpstreamKafkaFacade& upstream_kafka_facade,
+                                 SharedConsumerManager& shared_consumer_manager)
     : KafkaMeshFilter{std::make_shared<RequestDecoder>(std::vector<RequestCallbackSharedPtr>(
-          {std::make_shared<RequestProcessor>(*this, configuration, upstream_kafka_facade)}))} {
-
-            ENVOY_LOG(info, "mesh-filter ctor");
-          }
+          {std::make_shared<RequestProcessor>(*this, configuration, upstream_kafka_facade, shared_consumer_manager)}))} 
+{
+  ENVOY_LOG(info, "mesh-filter ctor");
+}
 
 KafkaMeshFilter::KafkaMeshFilter(RequestDecoderSharedPtr request_decoder)
     : request_decoder_{request_decoder} {}
@@ -43,7 +44,7 @@ Network::FilterStatus KafkaMeshFilter::onData(Buffer::Instance& data, bool) {
     data.drain(data.length()); // All the bytes have been copied to decoder.
     return Network::FilterStatus::StopIteration;
   } catch (const EnvoyException& e) {
-    ENVOY_LOG(trace, "Could not process data from Kafka client: {}", e.what());
+    ENVOY_LOG(info, "Could not process data from Kafka client: {}", e.what());
     request_decoder_->reset();
     // Something very wrong occurred, let's just close the connection.
     read_filter_callbacks_->connection().close(Network::ConnectionCloseType::FlushWrite);
