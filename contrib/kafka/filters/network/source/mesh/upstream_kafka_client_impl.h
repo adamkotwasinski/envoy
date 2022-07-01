@@ -108,7 +108,7 @@ private:
 
 using RichKafkaProducerPtr = std::unique_ptr<RichKafkaProducer>;
 
-// === consumer !!! ====
+// CONSUMER ============================================================================================================================================================
 
 using RawKafkaConfig = RawKafkaProducerConfig;
 
@@ -123,9 +123,11 @@ public:
   // More complex than usual - closes the real Kafka consumer.
   ~RichKafkaConsumer() override;
 
-  void poll() override;
+  void submitPoll(const FetchSpec& spec) override;
 
 private:
+
+  int num = 0;
 
   std::unique_ptr<RdKafka::KafkaConsumer> consumer_;
 

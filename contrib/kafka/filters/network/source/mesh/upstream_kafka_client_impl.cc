@@ -196,6 +196,8 @@ std::list<ProduceFinishCbSharedPtr>& RichKafkaProducer::getUnfinishedRequestsFor
   return unfinished_produce_requests_;
 }
 
+// CONSUMER ============================================================================================================================================================
+
 RichKafkaConsumer::RichKafkaConsumer(const RawKafkaConfig& configuration): RichKafkaConsumer( configuration,   LibRdKafkaUtilsImpl::getDefaultInstance()){};
 
 RichKafkaConsumer::RichKafkaConsumer(const RawKafkaConfig& configuration, const LibRdKafkaUtils& utils)   {
@@ -225,8 +227,45 @@ RichKafkaConsumer::~RichKafkaConsumer() {
   ENVOY_LOG(info, "Kafka consumer closed succesfully");
 }
 
-void RichKafkaConsumer::poll() {
+void RichKafkaConsumer::submitPoll(const FetchSpec& spec) {
   ENVOY_LOG(info, "poll invoked");
+
+  // oh lol.
+  {
+    std::string topic_str = std::get<0>(spec);
+    std::string errstr;
+    std::unique_ptr<RdKafka::Topic> topic = std::unique_ptr<RdKafka::Topic>(RdKafka::Topic::create(consumer_.get(), topic_str, nullptr, errstr));
+    if (!topic) {
+      std::cerr << "Failed to create topic: " << errstr << std::endl;
+      exit(1);
+    }
+
+
+    RdKafka::Metadata* metadata = nullptr;
+    const auto ec = consumer_->metadata(false, topic.get(), &metadata, 999999);
+
+/* SHOUL:DNT THIS COME FROM CONFIG */
+    if (RdKafka::ERR_NO_ERROR == ec) {
+      ENVOY_LOG(info, "metadata OK");
+      const auto m_topics = metadata->topics();
+      for (const auto& t : *m_topics) {
+        ENVOY_LOG(info, "topic {} -> {} partitions", t->topic(), t->partitions()->size());
+      }
+      delete metadata;
+    } else {
+      ENVOY_LOG(info, "metadata err {}", RdKafka::err2str(ec));
+    }
+  }
+
+  const auto topic = std::get<0>(spec);
+  const auto partition = std::get<1>(spec);
+
+  std::vector<RdKafka::TopicPartition*> kafka_partitions;
+  RdKafka::TopicPartition* tpptr = RdKafka::TopicPartition::create(topic, partition, 0 + (num++)); 
+  kafka_partitions.push_back(tpptr);
+
+  consumer_->assign(kafka_partitions);
+
   RdKafka::Message* message = consumer_->consume(1000);
   if (0 == message->err()) {
     ENVOY_LOG(info, "received message {}", message->offset());
@@ -234,9 +273,11 @@ void RichKafkaConsumer::poll() {
     ENVOY_LOG(info, "poll error: {}/{}", message->err(), message->errstr());
   }
   delete message;
+
+  consumer_->unassign();
+
+  RdKafka::TopicPartition::destroy(kafka_partitions); //yes really
 }
-
-
 
 } // namespace Mesh
 } // namespace Kafka

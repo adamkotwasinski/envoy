@@ -75,12 +75,19 @@ public:
 
 using KafkaProducerPtr = std::unique_ptr<KafkaProducer>;
 
+// =============================================================================
+
+// Topic name, topic partition, partition offset.
+using FetchSpec = std::tuple<std::string, int32_t, int64_t>;
+
 class KafkaConsumer {
 public:
   virtual ~KafkaConsumer() = default;
-
-  virtual void poll() PURE;
+  
+  virtual void submitPoll(const FetchSpec& spec) PURE;
 };
+
+using KafkaConsumerPtr = std::unique_ptr<KafkaConsumer>;
 
 } // namespace Mesh
 } // namespace Kafka
