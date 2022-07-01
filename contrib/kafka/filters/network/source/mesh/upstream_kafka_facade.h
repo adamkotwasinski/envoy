@@ -42,6 +42,8 @@ public:
                           ThreadLocal::SlotAllocator& slot_allocator,
                           Thread::ThreadFactory& thread_factory);
 
+  ~UpstreamKafkaFacadeImpl() override;
+
   // UpstreamKafkaFacade
   KafkaProducer& getProducerForTopic(const std::string& topic) override;
 
