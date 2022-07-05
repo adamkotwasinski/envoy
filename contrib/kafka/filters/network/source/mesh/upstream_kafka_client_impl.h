@@ -117,6 +117,25 @@ using RawKafkaConfig = RawKafkaProducerConfig;
 
 using RdKafkaTopicPartitionRawPtr = RdKafka::TopicPartition*;
 
+using RdKafkaMessagePtr = std::unique_ptr<RdKafka::Message>;
+
+class Store : private Logger::Loggable<Logger::Id::kafka> {
+public:
+
+  bool hasInterest() const;
+
+  void registerInterest(const std::vector<int32_t>& partitions, /* haha */ int64_t callback);
+
+  void processNewDelivery(int32_t partition, RdKafkaMessagePtr message);
+
+private:
+
+  std::map<int32_t, std::vector<int64_t>> partition_to_callbacks_;
+  std::map<int32_t, std::vector<RdKafkaMessagePtr>> messages_waiting_for_interest_;
+  std::vector<int32_t> paused_partitions_;
+
+};
+
 class RichKafkaConsumer : public KafkaConsumer, private Logger::Loggable<Logger::Id::kafka> {
 public:
   // Main constructor.
@@ -153,6 +172,9 @@ private:
   // Real worker thread.
   // Responsible for polling for records with consumer, and passing these records to awaiting requests.
   Thread::ThreadPtr poller_thread_;
+
+  // Stores interest in polled messages and messages that had no interest.
+  Store store_;
 
 };
 
