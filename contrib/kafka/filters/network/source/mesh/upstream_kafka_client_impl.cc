@@ -198,9 +198,9 @@ std::list<ProduceFinishCbSharedPtr>& RichKafkaProducer::getUnfinishedRequestsFor
 
 // CONSUMER ============================================================================================================================================================
 
-RichKafkaConsumer::RichKafkaConsumer(const std::string& topic, int32_t partition_count, const RawKafkaConfig& configuration): RichKafkaConsumer( topic, partition_count, configuration,   LibRdKafkaUtilsImpl::getDefaultInstance()){};
+RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory, const std::string& topic, int32_t partition_count, const RawKafkaConfig& configuration): RichKafkaConsumer( thread_factory, topic, partition_count, configuration,   LibRdKafkaUtilsImpl::getDefaultInstance()){};
 
-RichKafkaConsumer::RichKafkaConsumer(const std::string& topic, int32_t partition_count, const RawKafkaConfig& configuration, const LibRdKafkaUtils& utils)   {
+RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory, const std::string& topic, int32_t partition_count, const RawKafkaConfig& configuration, const LibRdKafkaUtils& utils): topic_{topic}   {
 
   // Create producer configuration object.
   std::unique_ptr<RdKafka::Conf> conf = std::unique_ptr<RdKafka::Conf>(RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL));
@@ -225,20 +225,27 @@ RichKafkaConsumer::RichKafkaConsumer(const std::string& topic, int32_t partition
     assignment_.push_back(topic_partition);
   }
   consumer_->assign(assignment_);
+
+  poller_thread_active_ = true;
+  std::function<void()> thread_routine = [this]() -> void { pollContinuously(); };
+  poller_thread_ = thread_factory.createThread(thread_routine);
 }
 
 RichKafkaConsumer::~RichKafkaConsumer() {
-  ENVOY_LOG(info, "Closing Kafka consumer");
+  ENVOY_LOG(info, "Closing Kafka consumer for topic [{}]", topic_);
+
+  poller_thread_active_ = false;
+  poller_thread_->join();
 
   consumer_->unassign();
   consumer_->close();
   RdKafka::TopicPartition::destroy(assignment_);
 
-  ENVOY_LOG(info, "Kafka consumer closed succesfully");
+  ENVOY_LOG(info, "Kafka consumer [{}] closed succesfully", topic_);
 }
 
 void RichKafkaConsumer::registerInterest(const std::vector<int32_t>& partitions) {
-  ENVOY_LOG(info, "poll invoked");
+  ENVOY_LOG(info, "Interest registered for topic {}", topic_);
 
   RdKafka::Message* message = consumer_->consume(1000);
   if (0 == message->err()) {
@@ -247,6 +254,15 @@ void RichKafkaConsumer::registerInterest(const std::vector<int32_t>& partitions)
     ENVOY_LOG(info, "poll error: {}/{}", message->err(), message->errstr());
   }
   delete message;
+}
+
+void RichKafkaConsumer::pollContinuously() {
+  int i = 0;
+  while (poller_thread_active_) {
+    ENVOY_LOG(info, "poll {} in [{}]", ++i, topic_);
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+  ENVOY_LOG(debug, "Poller thread for consumer [{}] finished", topic_);
 }
 
 } // namespace Mesh
