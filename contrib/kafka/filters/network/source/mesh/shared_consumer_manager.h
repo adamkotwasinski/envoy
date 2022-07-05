@@ -1,7 +1,7 @@
 #pragma once
 
+#include <map>
 #include <vector>
-#include <tuple>
 
 namespace Envoy {
 namespace Extensions {
@@ -9,11 +9,11 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
-// Topic name, topic partition, partition offset.
-using FetchSpec = std::tuple<std::string, int32_t, int64_t>;
+// Topic name to topic partitions.
+using FetchSpec = std::map<std::string, std::vector<int32_t>>;
 
 /**
- * Thing that holds Kafka consumers pointing upstream.
+ * ???
  */
 class SharedConsumerManager {
 public:
@@ -21,7 +21,7 @@ public:
 
     virtual int64_t listOffsets(std::string topic, int32_t partition) PURE;
 
-    virtual void requestFetches(std::vector<FetchSpec> fetches_requested) PURE;
+    virtual void processFetches(FetchSpec fetches) PURE; //const& ?
 };
 
 using SharedConsumerManagerSharedPtr = std::shared_ptr<SharedConsumerManager>;
