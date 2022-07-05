@@ -20,6 +20,9 @@ bool FetchRequestHolder::finished() const { return true; }
 
 AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
 
+  using namespace std::chrono_literals;
+  std::this_thread::sleep_for(1000ms);
+
   ENVOY_LOG(info, "Fetch request received");
   std::ostringstream debug;
 
