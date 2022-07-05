@@ -10,7 +10,7 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
-SharedConsumerManagerImpl::SharedConsumerManagerImpl(const UpstreamKafkaConfiguration& configuration): configuration_{configuration} {
+SharedConsumerManagerImpl::SharedConsumerManagerImpl(const UpstreamKafkaConfiguration& configuration, Thread::ThreadFactory& thread_factory): configuration_{configuration}, thread_factory_{thread_factory} {
     ENVOY_LOG(info, "SCM ctor");
 }
 
@@ -32,6 +32,7 @@ void SharedConsumerManagerImpl::processFetches(FetchSpec fetches) {
     }
 }
 
+// XXX this needs to be thread safe
 KafkaConsumer& SharedConsumerManagerImpl::getOrCreateConsumer(const std::string& topic) {
   const auto it = topic_to_consumer_.find(topic);
   // Return consumer already present or create new one and register it.
@@ -45,7 +46,7 @@ KafkaConsumer& SharedConsumerManagerImpl::registerNewConsumer(const std::string&
       throw EnvoyException(fmt::format("Could not compute upstream cluster configuration for topic [{}]", topic));
   }
   // Create the consumer and register it.
-  KafkaConsumerPtr new_consumer = std::make_unique<RichKafkaConsumer>(topic, cluster_config->partition_count_, cluster_config->upstream_consumer_properties_);
+  KafkaConsumerPtr new_consumer = std::make_unique<RichKafkaConsumer>(thread_factory_, topic, cluster_config->partition_count_, cluster_config->upstream_consumer_properties_);
   ENVOY_LOG(info, "Registering new Kafka consumer for topic [{}], consuming from cluster [{}]", topic, cluster_config->name_);
   auto result = topic_to_consumer_.emplace(topic, std::move(new_consumer));
   return *(result.first->second);
