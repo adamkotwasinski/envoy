@@ -6,6 +6,18 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
+// AAA
+std::string stringify(const std::vector<int32_t> arg) {
+  std::ostringstream oss;
+  oss << "[";
+  if (!arg.empty()) {
+    std::copy(arg.begin(), arg.end() - 1, std::ostream_iterator<int32_t>(oss, ","));
+    oss << arg.back();
+  }
+  oss << "]";
+  return oss.str();
+}
+
 class LibRdKafkaUtilsImpl : public LibRdKafkaUtils {
 
   // LibRdKafkaUtils
@@ -245,24 +257,73 @@ RichKafkaConsumer::~RichKafkaConsumer() {
 }
 
 void RichKafkaConsumer::registerInterest(const std::vector<int32_t>& partitions) {
-  ENVOY_LOG(info, "Interest registered for topic {}", topic_);
-
-  RdKafka::Message* message = consumer_->consume(1000);
-  if (0 == message->err()) {
-    ENVOY_LOG(info, "received message {}", message->offset());
-  } else {
-    ENVOY_LOG(info, "poll error: {}/{}", message->err(), message->errstr());
-  }
-  delete message;
+  //ENVOY_LOG(info, "Interest registered for topic {}", topic_);
+  static int32_t cnt = 0;
+  store_.registerInterest(partitions, cnt++);
 }
 
 void RichKafkaConsumer::pollContinuously() {
-  int i = 0;
+  int cnt = 0;
   while (poller_thread_active_) {
-    ENVOY_LOG(info, "poll {} in [{}]", ++i, topic_);
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    if (store_.hasInterest()) {
+      ENVOY_LOG(info, "poll [{}]", topic_);
+      RdKafkaMessagePtr message = std::unique_ptr<RdKafka::Message>(consumer_->consume(1000)); // argh
+      if (0 == message->err()) {
+        const auto message_partition = message->partition();
+        ENVOY_LOG(info, "received message: pt={}, o={}", message_partition, message->offset());
+        store_.processNewDelivery(message_partition, std::move(message));
+        cnt++;
+      } else {
+        ENVOY_LOG(info, "poll error: {}/{}", message->err(), message->errstr());
+      }
+    } else {
+      // there's no interest in any messages, just sleep for now
+      ENVOY_LOG(info, "no interest now, sleeping");
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
   }
   ENVOY_LOG(debug, "Poller thread for consumer [{}] finished", topic_);
+}
+
+bool Store::hasInterest() const {
+  for (const auto& e : partition_to_callbacks_) {
+    if (!e.second.empty()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void Store::registerInterest(const std::vector<int32_t>& partitions, /* haha */ int64_t callback) {
+  ENVOY_LOG(info, "registering callback {} for partitions {}", callback, stringify(partitions));
+
+  for (const int32_t partition : partitions) {
+    auto& partition_callbacks = partition_to_callbacks_[partition];
+    partition_callbacks.push_back(callback);
+  }
+}
+
+void Store::processNewDelivery(int32_t partition, RdKafkaMessagePtr message) {
+  ENVOY_LOG(info, "new delivery received for partition {}: offset = {}", partition, message->offset());
+
+  auto& matching_callbacks = partition_to_callbacks_[partition];
+  if (!matching_callbacks.empty()) {
+    // Typical case: there is some interest in messages for given partition.
+    // Notify the callback and remove it.
+    // XXX vector -> deque
+    // XXX batching?
+    const auto callback = matching_callbacks[0];
+    ENVOY_LOG(info, "notifying callback {} about delivery for partition {}", callback, partition);
+    // XXX implement notification here
+    matching_callbacks.erase(matching_callbacks.begin());
+  } else {
+    // We consume from all partitions, but there is noone interested in records present in this one.
+    // Keep it for now.
+    ENVOY_LOG(info, "storing message (offset={}) for partition {}", message->offset(), partition);
+    auto& stored_messages = messages_waiting_for_interest_[partition];
+    stored_messages.push_back(std::move(message));
+    // XXX if size() > x block OR throw
+  }
 }
 
 } // namespace Mesh
