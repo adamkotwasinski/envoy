@@ -8,6 +8,7 @@
 
 #include "contrib/kafka/filters/network/source/mesh/upstream_kafka_client.h"
 #include "librdkafka/rdkafkacpp.h"
+#include "envoy/thread/thread.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -119,10 +120,10 @@ using RdKafkaTopicPartitionRawPtr = RdKafka::TopicPartition*;
 class RichKafkaConsumer : public KafkaConsumer, private Logger::Loggable<Logger::Id::kafka> {
 public:
   // Main constructor.
-  RichKafkaConsumer(const std::string& topic, int32_t partition_count, const RawKafkaConfig& configuration);
+  RichKafkaConsumer(Thread::ThreadFactory& thread_factory, const std::string& topic, int32_t partition_count, const RawKafkaConfig& configuration);
 
   // Visible for testing (allows injection of LibRdKafkaUtils).
-  RichKafkaConsumer(const std::string& topic, int32_t partition_count, const RawKafkaConfig& configuration, const LibRdKafkaUtils& utils);
+  RichKafkaConsumer(Thread::ThreadFactory& thread_factory, const std::string& topic, int32_t partition_count, const RawKafkaConfig& configuration, const LibRdKafkaUtils& utils);
 
   // More complex than usual - closes the real Kafka consumer.
   // ???
@@ -131,7 +132,13 @@ public:
   // ???
   void registerInterest(const std::vector<int32_t>& partitions) override;
 
+  // ???
+  void pollContinuously();
+
 private:
+
+  // The topic we are consuming from.
+  std::string topic_;
 
   // Real Kafka consumer (NOT thread-safe).
   // All access to this thing happens in ???.
@@ -139,6 +146,9 @@ private:
 
   // Consumer's assignment.
   std::vector<RdKafkaTopicPartitionRawPtr> assignment_;
+
+  // Flag controlling poller threads's execution.
+  std::atomic<bool> poller_thread_active_;
 
   // Real worker thread.
   // Responsible for polling for records with consumer, and passing these records to awaiting requests.
