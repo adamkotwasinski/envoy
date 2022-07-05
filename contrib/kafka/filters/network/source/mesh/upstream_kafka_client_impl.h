@@ -1,6 +1,8 @@
 #pragma once
 
 #include <atomic>
+#include <list>
+#include <vector>
 
 #include "envoy/event/dispatcher.h"
 
@@ -112,24 +114,35 @@ using RichKafkaProducerPtr = std::unique_ptr<RichKafkaProducer>;
 
 using RawKafkaConfig = RawKafkaProducerConfig;
 
+using RdKafkaTopicPartitionRawPtr = RdKafka::TopicPartition*;
+
 class RichKafkaConsumer : public KafkaConsumer, private Logger::Loggable<Logger::Id::kafka> {
 public:
   // Main constructor.
-  RichKafkaConsumer(const RawKafkaConfig& configuration);
+  RichKafkaConsumer(const std::string& topic, int32_t partition_count, const RawKafkaConfig& configuration);
 
   // Visible for testing (allows injection of LibRdKafkaUtils).
-  RichKafkaConsumer(const RawKafkaConfig& configuration, const LibRdKafkaUtils& utils);
+  RichKafkaConsumer(const std::string& topic, int32_t partition_count, const RawKafkaConfig& configuration, const LibRdKafkaUtils& utils);
 
   // More complex than usual - closes the real Kafka consumer.
+  // ???
   ~RichKafkaConsumer() override;
 
-  void submitPoll(const FetchSpec& spec) override;
+  // ???
+  void registerInterest(const std::vector<int32_t>& partitions) override;
 
 private:
 
-  int num = 0;
-
+  // Real Kafka consumer (NOT thread-safe).
+  // All access to this thing happens in ???.
   std::unique_ptr<RdKafka::KafkaConsumer> consumer_;
+
+  // Consumer's assignment.
+  std::vector<RdKafkaTopicPartitionRawPtr> assignment_;
+
+  // Real worker thread.
+  // Responsible for polling for records with consumer, and passing these records to awaiting requests.
+  Thread::ThreadPtr poller_thread_;
 
 };
 

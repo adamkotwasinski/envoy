@@ -77,14 +77,11 @@ using KafkaProducerPtr = std::unique_ptr<KafkaProducer>;
 
 // =============================================================================
 
-// Topic name, topic partition, partition offset.
-using FetchSpec = std::tuple<std::string, int32_t, int64_t>;
-
 class KafkaConsumer {
 public:
   virtual ~KafkaConsumer() = default;
   
-  virtual void submitPoll(const FetchSpec& spec) PURE;
+  virtual void registerInterest(const std::vector<int32_t>& partitions) PURE;
 };
 
 using KafkaConsumerPtr = std::unique_ptr<KafkaConsumer>;

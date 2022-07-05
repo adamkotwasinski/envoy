@@ -22,12 +22,13 @@ int64_t SharedConsumerManagerImpl::listOffsets(std::string topic, int32_t partit
     return 0;
 }
 
-void SharedConsumerManagerImpl::requestFetches(std::vector<FetchSpec> fetches_requested) {
+void SharedConsumerManagerImpl::processFetches(FetchSpec fetches) {
     // For every fetch topic, figure out the upstream cluster, create consumer if needed, and put it all aggregated.
-    for (const FetchSpec spec : fetches_requested) {
-        const std::string topic = std::get<0>(spec);
+    for (const auto& f : fetches) {
+        const std::string& topic = f.first;
         KafkaConsumer& consumer = getOrCreateConsumer(topic);
-        consumer.submitPoll(spec);
+        const std::vector<int32_t>& partitions = f.second;
+        consumer.registerInterest(partitions);
     }
 }
 
@@ -44,7 +45,7 @@ KafkaConsumer& SharedConsumerManagerImpl::registerNewConsumer(const std::string&
       throw EnvoyException(fmt::format("Could not compute upstream cluster configuration for topic [{}]", topic));
   }
   // Create the consumer and register it.
-  KafkaConsumerPtr new_consumer = std::make_unique<RichKafkaConsumer>(cluster_config->upstream_consumer_properties_);
+  KafkaConsumerPtr new_consumer = std::make_unique<RichKafkaConsumer>(topic, cluster_config->partition_count_, cluster_config->upstream_consumer_properties_);
   ENVOY_LOG(info, "Registering new Kafka consumer for topic [{}], consuming from cluster [{}]", topic, cluster_config->name_);
   auto result = topic_to_consumer_.emplace(topic, std::move(new_consumer));
   return *(result.first->second);
