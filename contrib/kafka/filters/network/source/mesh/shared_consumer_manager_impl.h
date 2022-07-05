@@ -39,7 +39,7 @@ public:
     /**
      *
      */
-    void requestFetches(std::vector<FetchSpec> fetches_requested) override;
+    void processFetches(FetchSpec fetches) override;
 
 private:
     KafkaConsumer& getOrCreateConsumer(const std::string& topic);
