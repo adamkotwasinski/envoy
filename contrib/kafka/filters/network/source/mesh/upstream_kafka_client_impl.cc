@@ -198,12 +198,12 @@ std::list<ProduceFinishCbSharedPtr>& RichKafkaProducer::getUnfinishedRequestsFor
 
 // CONSUMER ============================================================================================================================================================
 
-RichKafkaConsumer::RichKafkaConsumer(const RawKafkaConfig& configuration): RichKafkaConsumer( configuration,   LibRdKafkaUtilsImpl::getDefaultInstance()){};
+RichKafkaConsumer::RichKafkaConsumer(const std::string& topic, int32_t partition_count, const RawKafkaConfig& configuration): RichKafkaConsumer( topic, partition_count, configuration,   LibRdKafkaUtilsImpl::getDefaultInstance()){};
 
-RichKafkaConsumer::RichKafkaConsumer(const RawKafkaConfig& configuration, const LibRdKafkaUtils& utils)   {
+RichKafkaConsumer::RichKafkaConsumer(const std::string& topic, int32_t partition_count, const RawKafkaConfig& configuration, const LibRdKafkaUtils& utils)   {
 
   // Create producer configuration object.
-  std::unique_ptr<RdKafka::Conf> conf =   std::unique_ptr<RdKafka::Conf>(RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL));
+  std::unique_ptr<RdKafka::Conf> conf = std::unique_ptr<RdKafka::Conf>(RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL));
   std::string errstr;
 
   // Setup producer custom properties.
@@ -219,52 +219,26 @@ RichKafkaConsumer::RichKafkaConsumer(const RawKafkaConfig& configuration, const 
     throw EnvoyException(absl::StrCat("Could not create consumer:", errstr));
   }
 
+  // XXX (AK) abstract out.
+  for (auto pt = 0; pt < partition_count; ++pt) {
+    RdKafkaTopicPartitionRawPtr topic_partition = RdKafka::TopicPartition::create(topic, pt, 0); // XXX (AK) initial offset???
+    assignment_.push_back(topic_partition);
+  }
+  consumer_->assign(assignment_);
 }
 
 RichKafkaConsumer::~RichKafkaConsumer() {
   ENVOY_LOG(info, "Closing Kafka consumer");
+
+  consumer_->unassign();
   consumer_->close();
+  RdKafka::TopicPartition::destroy(assignment_);
+
   ENVOY_LOG(info, "Kafka consumer closed succesfully");
 }
 
-void RichKafkaConsumer::submitPoll(const FetchSpec& spec) {
+void RichKafkaConsumer::registerInterest(const std::vector<int32_t>& partitions) {
   ENVOY_LOG(info, "poll invoked");
-
-  // oh lol.
-  {
-    std::string topic_str = std::get<0>(spec);
-    std::string errstr;
-    std::unique_ptr<RdKafka::Topic> topic = std::unique_ptr<RdKafka::Topic>(RdKafka::Topic::create(consumer_.get(), topic_str, nullptr, errstr));
-    if (!topic) {
-      std::cerr << "Failed to create topic: " << errstr << std::endl;
-      exit(1);
-    }
-
-
-    RdKafka::Metadata* metadata = nullptr;
-    const auto ec = consumer_->metadata(false, topic.get(), &metadata, 999999);
-
-/* SHOUL:DNT THIS COME FROM CONFIG */
-    if (RdKafka::ERR_NO_ERROR == ec) {
-      ENVOY_LOG(info, "metadata OK");
-      const auto m_topics = metadata->topics();
-      for (const auto& t : *m_topics) {
-        ENVOY_LOG(info, "topic {} -> {} partitions", t->topic(), t->partitions()->size());
-      }
-      delete metadata;
-    } else {
-      ENVOY_LOG(info, "metadata err {}", RdKafka::err2str(ec));
-    }
-  }
-
-  const auto topic = std::get<0>(spec);
-  const auto partition = std::get<1>(spec);
-
-  std::vector<RdKafka::TopicPartition*> kafka_partitions;
-  RdKafka::TopicPartition* tpptr = RdKafka::TopicPartition::create(topic, partition, 0 + (num++)); 
-  kafka_partitions.push_back(tpptr);
-
-  consumer_->assign(kafka_partitions);
 
   RdKafka::Message* message = consumer_->consume(1000);
   if (0 == message->err()) {
@@ -273,10 +247,6 @@ void RichKafkaConsumer::submitPoll(const FetchSpec& spec) {
     ENVOY_LOG(info, "poll error: {}/{}", message->err(), message->errstr());
   }
   delete message;
-
-  consumer_->unassign();
-
-  RdKafka::TopicPartition::destroy(kafka_partitions); //yes really
 }
 
 } // namespace Mesh
