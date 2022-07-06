@@ -42,7 +42,7 @@ public:
     /**
      *
      */
-    void processFetches(FetchSpec fetches) override;
+    void processFetches(RecordCbSharedPtr callback, FetchSpec fetches) override;
 
 private:
     KafkaConsumer& getOrCreateConsumer(const std::string& topic);
