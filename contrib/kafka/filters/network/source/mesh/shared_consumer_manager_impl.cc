@@ -22,13 +22,13 @@ int64_t SharedConsumerManagerImpl::listOffsets(std::string topic, int32_t partit
     return 0;
 }
 
-void SharedConsumerManagerImpl::processFetches(FetchSpec fetches) {
+void SharedConsumerManagerImpl::processFetches(RecordCbSharedPtr callback, FetchSpec fetches) {
     // For every fetch topic, figure out the upstream cluster, create consumer if needed, and put it all aggregated.
     for (const auto& f : fetches) {
         const std::string& topic = f.first;
         KafkaConsumer& consumer = getOrCreateConsumer(topic);
         const std::vector<int32_t>& partitions = f.second;
-        consumer.registerInterest(partitions);
+        consumer.registerInterest(callback, partitions);
     }
 }
 
