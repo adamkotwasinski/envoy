@@ -256,10 +256,8 @@ RichKafkaConsumer::~RichKafkaConsumer() {
   ENVOY_LOG(info, "Kafka consumer [{}] closed succesfully", topic_);
 }
 
-void RichKafkaConsumer::registerInterest(const std::vector<int32_t>& partitions) {
-  //ENVOY_LOG(info, "Interest registered for topic {}", topic_);
-  static int32_t cnt = 0;
-  store_.registerInterest(partitions, cnt++);
+void RichKafkaConsumer::registerInterest(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions) {
+  store_.registerInterest(callback, partitions);
 }
 
 void RichKafkaConsumer::pollContinuously() {
@@ -315,8 +313,8 @@ bool Store::hasInterest() const {
   return false;
 }
 
-void Store::registerInterest(const std::vector<int32_t>& partitions, /* haha */ int64_t callback) {
-  ENVOY_LOG(info, "registering callback {} for partitions {}", callback, stringify(partitions));
+void Store::registerInterest(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions) {
+  ENVOY_LOG(info, "registering callback for partitions {}", stringify(partitions));
 
   for (const int32_t partition : partitions) {
     auto& partition_callbacks = partition_to_callbacks_[partition];

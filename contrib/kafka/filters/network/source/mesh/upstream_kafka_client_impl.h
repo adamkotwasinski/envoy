@@ -124,7 +124,7 @@ public:
 
   bool hasInterest() const;
 
-  void registerInterest(const std::vector<int32_t>& partitions, /* haha */ int64_t callback);
+  void registerInterest(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions);
 
   void processNewDeliveries(std::vector<RdKafkaMessagePtr> messages);
 
@@ -132,7 +132,7 @@ private:
 
   void processNewDelivery(RdKafkaMessagePtr message);
 
-  std::map<int32_t, std::vector<int64_t>> partition_to_callbacks_;
+  std::map<int32_t, std::vector<RecordCbSharedPtr>> partition_to_callbacks_;
   std::map<int32_t, std::vector<RdKafkaMessagePtr>> messages_waiting_for_interest_;
   std::vector<int32_t> paused_partitions_;
 
@@ -151,7 +151,7 @@ public:
   ~RichKafkaConsumer() override;
 
   // ???
-  void registerInterest(const std::vector<int32_t>& partitions) override;
+  void registerInterest(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions) override;
 
   // ???
   void pollContinuously();
