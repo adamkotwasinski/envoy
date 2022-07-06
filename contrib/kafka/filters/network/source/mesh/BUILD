@@ -121,6 +121,7 @@ envoy_cc_library(
     hdrs = [ "shared_consumer_manager.h" ],
     tags = ["skip_on_windows"],
     deps = [
+        ":upstream_kafka_client_lib",
         ":upstream_config_lib",
     ],
 )
