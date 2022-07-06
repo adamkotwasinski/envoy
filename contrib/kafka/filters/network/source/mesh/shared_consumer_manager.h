@@ -1,9 +1,9 @@
 #pragma once
 
-#include "contrib/kafka/filters/network/source/mesh/upstream_kafka_client.h"
-
 #include <map>
 #include <vector>
+
+#include "contrib/kafka/filters/network/source/mesh/upstream_kafka_consumer.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -19,11 +19,11 @@ using FetchSpec = std::map<std::string, std::vector<int32_t>>;
  */
 class SharedConsumerManager {
 public:
-    virtual ~SharedConsumerManager() = default;
+  virtual ~SharedConsumerManager() = default;
 
-    virtual int64_t listOffsets(std::string topic, int32_t partition) PURE;
+  virtual int64_t listOffsets(std::string topic, int32_t partition) PURE;
 
-    virtual void processFetches(RecordCbSharedPtr callback, FetchSpec fetches) PURE; //const& ?
+  virtual void processFetches(RecordCbSharedPtr callback, FetchSpec fetches) PURE; // const& ?
 };
 
 using SharedConsumerManagerSharedPtr = std::shared_ptr<SharedConsumerManager>;
