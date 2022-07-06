@@ -1,5 +1,7 @@
 #pragma once
 
+#include "contrib/kafka/filters/network/source/mesh/upstream_kafka_client.h"
+
 #include <map>
 #include <vector>
 
@@ -21,7 +23,7 @@ public:
 
     virtual int64_t listOffsets(std::string topic, int32_t partition) PURE;
 
-    virtual void processFetches(FetchSpec fetches) PURE; //const& ?
+    virtual void processFetches(RecordCbSharedPtr callback, FetchSpec fetches) PURE; //const& ?
 };
 
 using SharedConsumerManagerSharedPtr = std::shared_ptr<SharedConsumerManager>;
