@@ -263,19 +263,12 @@ void RichKafkaConsumer::registerInterest(const std::vector<int32_t>& partitions)
 }
 
 void RichKafkaConsumer::pollContinuously() {
-  int cnt = 0;
   while (poller_thread_active_) {
     if (store_.hasInterest()) {
       ENVOY_LOG(info, "poll [{}]", topic_);
-      RdKafkaMessagePtr message = std::unique_ptr<RdKafka::Message>(consumer_->consume(1000)); // argh
-      if (0 == message->err()) {
-        const auto message_partition = message->partition();
-        ENVOY_LOG(info, "received message: pt={}, o={}", message_partition, message->offset());
-        store_.processNewDelivery(message_partition, std::move(message));
-        cnt++;
-      } else {
-        ENVOY_LOG(info, "poll error: {}/{}", message->err(), message->errstr());
-      }
+      std::vector<RdKafkaMessagePtr> batch = receiveMessageBatch();
+      ENVOY_LOG(info, "poll [{}] -> {}", topic_, batch.size());
+      store_.processNewDeliveries(std::move(batch));
     } else {
       // there's no interest in any messages, just sleep for now
       ENVOY_LOG(info, "no interest now, sleeping");
@@ -283,6 +276,34 @@ void RichKafkaConsumer::pollContinuously() {
     }
   }
   ENVOY_LOG(debug, "Poller thread for consumer [{}] finished", topic_);
+}
+
+const static int32_t BUFFER_DRAIN_VOLUME = 5;
+
+std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
+  // This message kicks off librdkafka consumer's Fetch requests and delivers a message.
+  RdKafkaMessagePtr first_message = std::unique_ptr<RdKafka::Message>(consumer_->consume(1000));
+  if (RdKafka::ERR_NO_ERROR == first_message->err()) {
+    ENVOY_LOG(info, "received first message: pt={}, o={}", first_message->partition(), first_message->offset());
+    std::vector<RdKafkaMessagePtr> result;
+    result.push_back(std::move(first_message));
+    // We got a message, there could be something left in the buffer, so we try to drain it by consuming without waiting.
+    // See: https://github.com/edenhill/librdkafka/discussions/3897
+    while (result.size() < BUFFER_DRAIN_VOLUME) {
+      RdKafkaMessagePtr buffered_message = std::unique_ptr<RdKafka::Message>(consumer_->consume(0));
+      if (RdKafka::ERR_NO_ERROR == buffered_message->err()) {
+        // There was a message in the buffer.
+        ENVOY_LOG(info, "received buffered message: pt={}, o={}", buffered_message->partition(), buffered_message->offset());
+        result.push_back(std::move(buffered_message));
+      } else {
+        // Buffer is empty / consumer is failing - there is nothing more to consume.
+        break;
+      }
+    }
+    return result;
+  } else {
+    return {};
+  }
 }
 
 bool Store::hasInterest() const {
@@ -303,7 +324,14 @@ void Store::registerInterest(const std::vector<int32_t>& partitions, /* haha */ 
   }
 }
 
-void Store::processNewDelivery(int32_t partition, RdKafkaMessagePtr message) {
+void Store::processNewDeliveries(std::vector<RdKafkaMessagePtr> messages) {
+  for (auto& message : messages) {
+    processNewDelivery(std::move(message));
+  }
+}
+
+void Store::processNewDelivery(RdKafkaMessagePtr message) {
+  const int32_t partition = message->partition();
   ENVOY_LOG(info, "new delivery received for partition {}: offset = {}", partition, message->offset());
 
   auto& matching_callbacks = partition_to_callbacks_[partition];

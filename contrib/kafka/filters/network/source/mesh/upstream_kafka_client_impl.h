@@ -126,9 +126,11 @@ public:
 
   void registerInterest(const std::vector<int32_t>& partitions, /* haha */ int64_t callback);
 
-  void processNewDelivery(int32_t partition, RdKafkaMessagePtr message);
+  void processNewDeliveries(std::vector<RdKafkaMessagePtr> messages);
 
 private:
+
+  void processNewDelivery(RdKafkaMessagePtr message);
 
   std::map<int32_t, std::vector<int64_t>> partition_to_callbacks_;
   std::map<int32_t, std::vector<RdKafkaMessagePtr>> messages_waiting_for_interest_;
@@ -155,6 +157,8 @@ public:
   void pollContinuously();
 
 private:
+
+  std::vector<RdKafkaMessagePtr> receiveMessageBatch();
 
   // The topic we are consuming from.
   std::string topic_;
