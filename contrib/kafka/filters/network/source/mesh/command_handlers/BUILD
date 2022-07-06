@@ -46,6 +46,57 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
+    name = "fetch_lib",
+    srcs = [
+        "fetch.cc",
+    ],
+    hdrs = [
+        "fetch.h",
+    ],
+    tags = ["skip_on_windows"],
+    deps = [
+        ":fetch_record_converter_lib",
+        "//contrib/kafka/filters/network/source:kafka_request_parser_lib",
+        "//contrib/kafka/filters/network/source:kafka_response_parser_lib",
+        "//contrib/kafka/filters/network/source/mesh:abstract_command_lib",
+        "//contrib/kafka/filters/network/source/mesh:fetch_purger_lib",
+        "//contrib/kafka/filters/network/source/mesh:shared_consumer_manager_lib",
+        "//source/common/common:minimal_logger_lib",
+    ],
+)
+
+envoy_cc_library(
+    name = "fetch_record_converter_lib",
+    srcs = [
+        "fetch_record_converter.cc",
+    ],
+    hdrs = [
+        "fetch_record_converter.h",
+    ],
+    tags = ["skip_on_windows"],
+    deps = [
+        ":crc_lib",
+        "//contrib/kafka/filters/network/source:kafka_response_parser_lib",
+        "//contrib/kafka/filters/network/source/mesh:inbound_record_lib",
+        "//source/common/buffer:buffer_lib",
+        "//source/common/common:minimal_logger_lib",
+    ],
+)
+
+envoy_cc_library(
+    name = "crc_lib",
+    srcs = [
+        "crc.c",
+    ],
+    hdrs = [
+        "crc.h",
+    ],
+    tags = ["skip_on_windows"],
+    deps = [
+    ],
+)
+
+envoy_cc_library(
     name = "list_offsets_lib",
     srcs = [
         "list_offsets.cc",
@@ -58,6 +109,7 @@ envoy_cc_library(
         "//contrib/kafka/filters/network/source:kafka_request_parser_lib",
         "//contrib/kafka/filters/network/source:kafka_response_parser_lib",
         "//contrib/kafka/filters/network/source/mesh:abstract_command_lib",
+        "//contrib/kafka/filters/network/source/mesh:shared_consumer_manager_lib",
         "//source/common/common:minimal_logger_lib",
     ],
 )
