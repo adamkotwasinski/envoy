@@ -1,20 +1,16 @@
 #pragma once
 
-#include "source/common/common/logger.h"
-
-#include "contrib/kafka/filters/network/source/mesh/shared_consumer_manager.h"
-
-#include "contrib/kafka/filters/network/source/mesh/upstream_config.h"
-
-#include "contrib/kafka/filters/network/source/mesh/upstream_kafka_client.h"
-
-#include "contrib/kafka/filters/network/source/mesh/upstream_kafka_client_impl.h" // FIXME ?
+#include <map>
+#include <tuple>
+#include <vector>
 
 #include "envoy/thread/thread.h"
 
-#include <vector>
-#include <map>
-#include <tuple>
+#include "source/common/common/logger.h"
+
+#include "contrib/kafka/filters/network/source/mesh/shared_consumer_manager.h"
+#include "contrib/kafka/filters/network/source/mesh/upstream_config.h"
+#include "contrib/kafka/filters/network/source/mesh/upstream_kafka_consumer.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -27,32 +23,33 @@ namespace Mesh {
  * Maintains a message cache for messages that had no interest but might be requested later.
  */
 // XXX the whole thing needs to be thread-safe
-class SharedConsumerManagerImpl: public SharedConsumerManager, private Logger::Loggable<Logger::Id::kafka> {
+class SharedConsumerManagerImpl : public SharedConsumerManager,
+                                  private Logger::Loggable<Logger::Id::kafka> {
 public:
+  SharedConsumerManagerImpl(const UpstreamKafkaConfiguration& configuration,
+                            Thread::ThreadFactory& thread_factory);
 
-    SharedConsumerManagerImpl(const UpstreamKafkaConfiguration& configuration, Thread::ThreadFactory& thread_factory);
+  ~SharedConsumerManagerImpl() override;
 
-    ~SharedConsumerManagerImpl() override;
+  /**
+   * Provides current position of consumer.
+   */
+  int64_t listOffsets(std::string topic, int32_t partition) override;
 
-    /**
-     * Provides current position of consumer.
-     */
-    int64_t listOffsets(std::string topic, int32_t partition) override;
-
-    /**
-     *
-     */
-    void processFetches(RecordCbSharedPtr callback, FetchSpec fetches) override;
+  /**
+   *
+   */
+  void processFetches(RecordCbSharedPtr callback, FetchSpec fetches) override;
 
 private:
-    KafkaConsumer& getOrCreateConsumer(const std::string& topic);
-    // Mutates 'topic_to_consumer_'.
-    KafkaConsumer& registerNewConsumer(const std::string& topic);
+  KafkaConsumer& getOrCreateConsumer(const std::string& topic);
+  // Mutates 'topic_to_consumer_'.
+  KafkaConsumer& registerNewConsumer(const std::string& topic);
 
-    const UpstreamKafkaConfiguration& configuration_;
-    Thread::ThreadFactory& thread_factory_;
+  const UpstreamKafkaConfiguration& configuration_;
+  Thread::ThreadFactory& thread_factory_;
 
-    std::map<std::string, KafkaConsumerPtr> topic_to_consumer_;
+  std::map<std::string, KafkaConsumerPtr> topic_to_consumer_;
 };
 
 } // namespace Mesh
