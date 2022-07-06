@@ -2,8 +2,6 @@
 
 #include "contrib/kafka/filters/network/source/external/responses.h"
 
-#include <tuple>
-
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
@@ -14,43 +12,41 @@ FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter, SharedCo
 BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, request_{request} {
 }
 
-void FetchRequestHolder::startProcessing() { notifyFilter(); }
-
-bool FetchRequestHolder::finished() const { return true; }
-
-AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
-
-  using namespace std::chrono_literals;
-  std::this_thread::sleep_for(1000ms);
-
+void FetchRequestHolder::startProcessing() {
   ENVOY_LOG(info, "Fetch request received");
-  std::ostringstream debug;
 
-  const std::vector<FetchTopic> topics = request_->data_.topics_;
+  const std::vector<FetchTopic>& topics = request_->data_.topics_;
   FetchSpec fetches_requested;
-  for (const auto topic : topics) {
+  for (const auto& topic : topics) {
     const std::string topic_name = topic.topic_;
     const std::vector<FetchPartition> partitions = topic.partitions_;
     for (const auto partition : partitions) {
       const int32_t partition_id = partition.partition_;
-      ENVOY_LOG(trace, "Fetch for {}-{}", topic_name, partition_id);
-      fetches_requested[topic_name].push_back(partition_id); // yay
-      
-      debug << topic_name << "-" << partition_id << ", "; // aaa
+      fetches_requested[topic_name].push_back(partition_id);
     }
   }
+  consumer_manager_.processFetches(shared_from_this(), fetches_requested);
 
-  ENVOY_LOG(info, "fetch: {} -> {}", fetches_requested.size(), debug.str());
 
-  consumer_manager_.processFetches(fetches_requested);
+  using namespace std::chrono_literals;
+  std::this_thread::sleep_for(1000ms);
 
+  // Corner case handling: ???
+  if (finished()) {
+    notifyFilter();
+  }
+}
+
+bool FetchRequestHolder::finished() const { return true; }
+
+AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
   const auto& header = request_->request_header_;
   const ResponseMetadata metadata = {header.api_key_, header.api_version_, header.correlation_id_};
 
   const int32_t throttle_time_ms = 0;
   std::vector<FetchableTopicResponse> responses;
   /* hack - no data for now */
-  for (const auto& ft : topics) {
+  for (const auto& ft : request_->data_.topics_) {
     std::vector<FetchResponseResponsePartitionData> partitions;
     for (const auto& ftp : ft.partitions_) {
       FetchResponseResponsePartitionData frpd = { ftp.partition_, 0, 0, absl::nullopt };
@@ -62,6 +58,10 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
   
   const FetchResponse data = { throttle_time_ms, responses };
   return std::make_shared<Response<FetchResponse>>(metadata, data);
+}
+
+void FetchRequestHolder::accept() {
+  ENVOY_LOG(info, "FRH accept");
 }
 
 } // namespace Mesh
