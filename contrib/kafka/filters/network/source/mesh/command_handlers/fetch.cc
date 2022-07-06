@@ -8,9 +8,10 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
-FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter, SharedConsumerManager& consumer_manager, const std::shared_ptr<Request<FetchRequest>> request): 
-BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, request_{request} {
-}
+FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
+                                       SharedConsumerManager& consumer_manager,
+                                       const std::shared_ptr<Request<FetchRequest>> request)
+    : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, request_{request} {}
 
 void FetchRequestHolder::startProcessing() {
   ENVOY_LOG(info, "Fetch request received");
@@ -26,7 +27,6 @@ void FetchRequestHolder::startProcessing() {
     }
   }
   consumer_manager_.processFetches(shared_from_this(), fetches_requested);
-
 
   using namespace std::chrono_literals;
   std::this_thread::sleep_for(1000ms);
@@ -49,20 +49,18 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
   for (const auto& ft : request_->data_.topics_) {
     std::vector<FetchResponseResponsePartitionData> partitions;
     for (const auto& ftp : ft.partitions_) {
-      FetchResponseResponsePartitionData frpd = { ftp.partition_, 0, 0, absl::nullopt };
+      FetchResponseResponsePartitionData frpd = {ftp.partition_, 0, 0, absl::nullopt};
       partitions.push_back(frpd);
     }
-    FetchableTopicResponse ftr = { ft.topic_, partitions, TaggedFields{} };
+    FetchableTopicResponse ftr = {ft.topic_, partitions, TaggedFields{}};
     responses.push_back(ftr);
   }
-  
-  const FetchResponse data = { throttle_time_ms, responses };
+
+  const FetchResponse data = {throttle_time_ms, responses};
   return std::make_shared<Response<FetchResponse>>(metadata, data);
 }
 
-void FetchRequestHolder::accept() {
-  ENVOY_LOG(info, "FRH accept");
-}
+void FetchRequestHolder::accept() { ENVOY_LOG(info, "FRH accept"); }
 
 } // namespace Mesh
 } // namespace Kafka

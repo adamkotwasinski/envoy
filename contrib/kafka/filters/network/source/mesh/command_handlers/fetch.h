@@ -3,7 +3,7 @@
 #include "contrib/kafka/filters/network/source/external/requests.h"
 #include "contrib/kafka/filters/network/source/mesh/abstract_command.h"
 #include "contrib/kafka/filters/network/source/mesh/shared_consumer_manager.h"
-#include "contrib/kafka/filters/network/source/mesh/upstream_kafka_client.h"
+#include "contrib/kafka/filters/network/source/mesh/upstream_kafka_consumer.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -15,7 +15,8 @@ class FetchRequestHolder : public BaseInFlightRequest,
                            public RecordCb,
                            public std::enable_shared_from_this<FetchRequestHolder> {
 public:
-  FetchRequestHolder(AbstractRequestListener& filter, SharedConsumerManager& consumer_manager, const std::shared_ptr<Request<FetchRequest>> request);
+  FetchRequestHolder(AbstractRequestListener& filter, SharedConsumerManager& consumer_manager,
+                     const std::shared_ptr<Request<FetchRequest>> request);
 
   void startProcessing() override;
 
