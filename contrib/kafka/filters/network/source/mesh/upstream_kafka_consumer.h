@@ -6,19 +6,26 @@
 
 #include "envoy/common/pure.h"
 
+// FIXME
+#include "librdkafka/rdkafkacpp.h"
+
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
+// FIXME duplicate of _impl.h
+using RdKafkaMessagePtr = std::unique_ptr<RdKafka::Message>;
+
 // Callback for objects that want to be notified that new Kafka record has been received.
 class RecordCb {
 public:
   virtual ~RecordCb() = default;
 
-  // ???
-  virtual void accept() PURE;
+  // Notify the callback that with a message.
+  // @return whether the calback is willing to accept more messages
+  virtual bool receive(RdKafkaMessagePtr message) PURE;
 };
 
 using RecordCbSharedPtr = std::shared_ptr<RecordCb>;
