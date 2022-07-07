@@ -14,7 +14,7 @@ FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
     : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, request_{request} {}
 
 void FetchRequestHolder::startProcessing() {
-  ENVOY_LOG(info, "Fetch request received");
+  ENVOY_LOG(info, "Fetch request received: CID={}", request_->request_header_.correlation_id_);
 
   const std::vector<FetchTopic>& topics = request_->data_.topics_;
   FetchSpec fetches_requested;
@@ -28,16 +28,28 @@ void FetchRequestHolder::startProcessing() {
   }
   consumer_manager_.processFetches(shared_from_this(), fetches_requested);
 
-  using namespace std::chrono_literals;
-  std::this_thread::sleep_for(1000ms);
-
   // Corner case handling: ???
   if (finished()) {
     notifyFilter();
   }
 }
 
-bool FetchRequestHolder::finished() const { return true; }
+bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
+  const auto& header = request_->request_header_;
+  ENVOY_LOG(info, "FRH receive {}: {}/{}", header.correlation_id_, message->partition(), message->offset() );
+  messages_.push_back(std::move(message));
+  return !isEligibleForSendingDownstream();
+}
+
+bool FetchRequestHolder::isEligibleForSendingDownstream() const {
+  // FIXME this needs to be better
+  return messages_.size() >= 1;
+}
+
+bool FetchRequestHolder::finished() const { 
+  ENVOY_LOG(info, "checking finish for {}", request_->request_header_.correlation_id_);
+  return isEligibleForSendingDownstream(); // FIXME inline iEFSD?
+}
 
 AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
   const auto& header = request_->request_header_;
@@ -45,6 +57,12 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
 
   const int32_t throttle_time_ms = 0;
   std::vector<FetchableTopicResponse> responses;
+
+  ENVOY_LOG(info, "response to FR{} has {} records", header.correlation_id_, messages_.size());
+  for (auto& message : messages_) {
+    ENVOY_LOG(info, "record {}/{}", message->partition(), message->offset());
+  }
+
   /* hack - no data for now */
   for (const auto& ft : request_->data_.topics_) {
     std::vector<FetchResponseResponsePartitionData> partitions;
@@ -59,8 +77,6 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
   const FetchResponse data = {throttle_time_ms, responses};
   return std::make_shared<Response<FetchResponse>>(metadata, data);
 }
-
-void FetchRequestHolder::accept() { ENVOY_LOG(info, "FRH accept"); }
 
 } // namespace Mesh
 } // namespace Kafka
