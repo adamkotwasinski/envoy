@@ -145,7 +145,7 @@ void RichKafkaConsumer::pollContinuously() {
       store_.processNewDeliveries(std::move(batch));
     } else {
       // there's no interest in any messages, just sleep for now
-      ENVOY_LOG(info, "no interest now, sleeping");
+      //ENVOY_LOG(info, "no interest now, sleeping");
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   }
@@ -206,10 +206,11 @@ void Store::processNewDeliveries(std::vector<RdKafkaMessagePtr> messages) {
   }
 }
 
+// XXX there was something funny around printing topic here, check this out
+
 void Store::processNewDelivery(RdKafkaMessagePtr message) {
   const int32_t partition = message->partition();
-  ENVOY_LOG(info, "new delivery received for partition {}: offset = {}", partition,
-            message->offset());
+  ENVOY_LOG(info, "new delivery received for partition {}: offset = {}", partition, message->offset());
 
   auto& matching_callbacks = partition_to_callbacks_[partition];
   if (!matching_callbacks.empty()) {
@@ -219,8 +220,11 @@ void Store::processNewDelivery(RdKafkaMessagePtr message) {
     // XXX batching?
     const auto callback = matching_callbacks[0];
     ENVOY_LOG(info, "notifying callback {} about delivery for partition {}", callback, partition);
-    // XXX implement notification here
-    matching_callbacks.erase(matching_callbacks.begin());
+    bool callback_wants_more = callback->receive(std::move(message));
+    ENVOY_LOG(info, "callback {} wants more: {}", callback, callback_wants_more);
+    if (!callback_wants_more) {
+      eraseCallback(callback);
+    }
   } else {
     // We consume from all partitions, but there is noone interested in records present in this one.
     // Keep it for now.
@@ -229,6 +233,16 @@ void Store::processNewDelivery(RdKafkaMessagePtr message) {
     stored_messages.push_back(std::move(message));
     // XXX if size() > x block OR throw
   }
+}
+
+void Store::eraseCallback(RecordCbSharedPtr callback) {
+  int i = 0;
+  for (auto& e : partition_to_callbacks_) {
+    auto& partition_callbacks = e.second;
+    partition_callbacks.erase(std::remove(partition_callbacks.begin(), partition_callbacks.end(), callback), partition_callbacks.end());
+    ++i;
+  }
+  ENVOY_LOG(info, "removed {} callbacks", i);
 }
 
 } // namespace Mesh

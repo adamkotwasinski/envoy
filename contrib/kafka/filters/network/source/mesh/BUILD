@@ -192,6 +192,7 @@ envoy_cc_library(
     ],
     tags = ["skip_on_windows"],
     deps = [
+        envoy_external_dep_path("librdkafka"),
     ],
 )
 
