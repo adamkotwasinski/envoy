@@ -3,6 +3,7 @@ load(
     "envoy_cc_library",
     "envoy_contrib_package",
 )
+load("//bazel:envoy_internal.bzl", "envoy_external_dep_path")
 
 licenses(["notice"])  # Apache 2
 
@@ -60,6 +61,23 @@ envoy_cc_library(
         "//contrib/kafka/filters/network/source/mesh:abstract_command_lib",
         "//contrib/kafka/filters/network/source/mesh:shared_consumer_manager_impl_lib",
         "//source/common/common:minimal_logger_lib",
+        ":fetch_record_lib",
+    ],
+)
+
+envoy_cc_library(
+    name = "fetch_record_lib",
+    srcs = [
+        "fetch_record.cc",
+    ],
+    hdrs = [
+        "fetch_record.h",
+    ],
+    tags = ["skip_on_windows"],
+    deps = [
+        "//source/common/common:minimal_logger_lib", 
+        "//contrib/kafka/filters/network/source:kafka_response_parser_lib",
+        envoy_external_dep_path("librdkafka"),
     ],
 )
 
