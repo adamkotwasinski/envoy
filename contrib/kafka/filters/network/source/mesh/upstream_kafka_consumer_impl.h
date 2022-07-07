@@ -62,6 +62,8 @@ public:
 private:
   void processNewDelivery(RdKafkaMessagePtr message);
 
+  void eraseCallback(RecordCbSharedPtr callback);
+
   std::map<int32_t, std::vector<RecordCbSharedPtr>> partition_to_callbacks_;
   std::map<int32_t, std::vector<RdKafkaMessagePtr>> messages_waiting_for_interest_;
   std::vector<int32_t> paused_partitions_;
