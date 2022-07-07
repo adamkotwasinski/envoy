@@ -24,14 +24,22 @@ public:
 
   AbstractResponseSharedPtr computeAnswer() const override;
 
+  // Whether the given fetch request should be sent downstream.
+  // Typical cases are:
+  // - it has enough records (meeting request's minimal requirements),
+  // - enough time has passed.
+  bool isEligibleForSendingDownstream() const;
+
   // RecordCb
-  void accept() override;
+  bool receive(RdKafkaMessagePtr message) override;
 
 private:
   // Provides access to upstream-pointing consumers.
   SharedConsumerManager& consumer_manager_;
   // Original request.
   const std::shared_ptr<Request<FetchRequest>> request_;
+  // The messages to send downstream.
+  std::vector<RdKafkaMessagePtr> messages_;
 };
 
 } // namespace Mesh
