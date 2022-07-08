@@ -16,10 +16,11 @@ namespace Mesh {
 
 KafkaMeshFilter::KafkaMeshFilter(const UpstreamKafkaConfiguration& configuration,
                                  UpstreamKafkaFacade& upstream_kafka_facade,
-                                 SharedConsumerManager& shared_consumer_manager)
-    : KafkaMeshFilter{std::make_shared<RequestDecoder>(
-          std::vector<RequestCallbackSharedPtr>({std::make_shared<RequestProcessor>(
-              *this, configuration, upstream_kafka_facade, shared_consumer_manager)}))} {}
+                                 SharedConsumerManager& shared_consumer_manager,
+                                 FetchPurger& fetch_purger)
+    : KafkaMeshFilter{std::make_shared<RequestDecoder>(std::vector<RequestCallbackSharedPtr>(
+          {std::make_shared<RequestProcessor>(*this, configuration, upstream_kafka_facade,
+                                              shared_consumer_manager, fetch_purger)}))} {}
 
 KafkaMeshFilter::KafkaMeshFilter(RequestDecoderSharedPtr request_decoder)
     : request_decoder_{request_decoder} {}
