@@ -4,6 +4,7 @@
 #include "contrib/kafka/filters/network/source/mesh/abstract_command.h"
 #include "contrib/kafka/filters/network/source/mesh/shared_consumer_manager.h"
 #include "contrib/kafka/filters/network/source/mesh/upstream_kafka_consumer.h"
+#include "contrib/kafka/filters/network/source/mesh/command_handlers/fetch_record.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -40,6 +41,8 @@ private:
   const std::shared_ptr<Request<FetchRequest>> request_;
   // The messages to send downstream.
   std::vector<RdKafkaMessagePtr> messages_;
+  // Translates librdkafka objects into bytes to be sent downstream.
+  const FetchResponsePayloadProcessor processor_;
 };
 
 } // namespace Mesh

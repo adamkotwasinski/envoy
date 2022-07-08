@@ -36,7 +36,7 @@ void FetchRequestHolder::startProcessing() {
 
 bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
   const auto& header = request_->request_header_;
-  ENVOY_LOG(info, "FRH receive {}: {}/{}", header.correlation_id_, message->partition(), message->offset() );
+  ENVOY_LOG(info, "FRH receive CID{}: {}/{}", header.correlation_id_, message->partition(), message->offset() );
   messages_.push_back(std::move(message));
   return !isEligibleForSendingDownstream();
 }
@@ -47,8 +47,9 @@ bool FetchRequestHolder::isEligibleForSendingDownstream() const {
 }
 
 bool FetchRequestHolder::finished() const { 
-  ENVOY_LOG(info, "checking finish for {}", request_->request_header_.correlation_id_);
-  return isEligibleForSendingDownstream(); // FIXME inline iEFSD?
+  const auto r = isEligibleForSendingDownstream();
+  ENVOY_LOG(info, "checking finish for CID{} -> {}", request_->request_header_.correlation_id_, r);
+  return r; // FIXME inline iEFSD?
 }
 
 AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
@@ -58,10 +59,8 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
   const int32_t throttle_time_ms = 0;
   std::vector<FetchableTopicResponse> responses;
 
-  ENVOY_LOG(info, "response to FR{} has {} records", header.correlation_id_, messages_.size());
-  for (auto& message : messages_) {
-    ENVOY_LOG(info, "record {}/{}", message->partition(), message->offset());
-  }
+  ENVOY_LOG(info, "response to CID{} has {} records", header.correlation_id_, messages_.size());
+  processor_.transform(messages_);
 
   /* hack - no data for now */
   for (const auto& ft : request_->data_.topics_) {
