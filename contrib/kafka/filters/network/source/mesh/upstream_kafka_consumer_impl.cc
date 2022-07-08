@@ -145,7 +145,7 @@ void RichKafkaConsumer::pollContinuously() {
       store_.processNewDeliveries(std::move(batch));
     } else {
       // there's no interest in any messages, just sleep for now
-      ENVOY_LOG(info, "no interest now, sleeping");
+      //ENVOY_LOG(info, "no interest now, sleeping");
       std::this_thread::sleep_for(std::chrono::seconds(1));
     }
   }
@@ -205,6 +205,8 @@ void Store::processNewDeliveries(std::vector<RdKafkaMessagePtr> messages) {
     processNewDelivery(std::move(message));
   }
 }
+
+// XXX there was something funny around printing topic here, check this out
 
 void Store::processNewDelivery(RdKafkaMessagePtr message) {
   const int32_t partition = message->partition();
