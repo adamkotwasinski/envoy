@@ -2,6 +2,8 @@
 
 #include "contrib/kafka/filters/network/source/external/responses.h"
 
+#include "absl/synchronization/mutex.h"
+
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
@@ -37,11 +39,15 @@ void FetchRequestHolder::startProcessing() {
 bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
   const auto& header = request_->request_header_;
   ENVOY_LOG(info, "FRH receive CID{}: {}/{}", header.correlation_id_, message->partition(), message->offset() );
-  messages_.push_back(std::move(message));
+  {
+    absl::MutexLock lock(&messages_mutex_);
+    messages_.push_back(std::move(message));
+  }
   return !isEligibleForSendingDownstream();
 }
 
 bool FetchRequestHolder::isEligibleForSendingDownstream() const {
+  absl::MutexLock lock(&messages_mutex_);
   // FIXME this needs to be better
   return messages_.size() >= 1;
 }
@@ -59,8 +65,11 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
   const int32_t throttle_time_ms = 0;
   std::vector<FetchableTopicResponse> responses;
 
-  ENVOY_LOG(info, "response to CID{} has {} records", header.correlation_id_, messages_.size());
-  processor_.transform(messages_);
+  {
+    absl::MutexLock lock(&messages_mutex_);
+    ENVOY_LOG(info, "response to CID{} has {} records", header.correlation_id_, messages_.size());
+    processor_.transform(messages_);
+  }
 
   /* hack - no data for now */
   for (const auto& ft : request_->data_.topics_) {
