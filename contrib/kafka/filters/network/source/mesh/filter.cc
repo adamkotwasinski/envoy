@@ -8,6 +8,8 @@
 #include "contrib/kafka/filters/network/source/external/responses.h"
 #include "contrib/kafka/filters/network/source/response_codec.h"
 
+#include <thread>
+
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
@@ -16,18 +18,25 @@ namespace Mesh {
 
 KafkaMeshFilter::KafkaMeshFilter(const UpstreamKafkaConfiguration& configuration,
                                  UpstreamKafkaFacade& upstream_kafka_facade,
-                                 SharedConsumerManager& shared_consumer_manager)
+                                 SharedConsumerManager& shared_consumer_manager,
+                                 FetchPurger& fetch_purger)
     : KafkaMeshFilter{std::make_shared<RequestDecoder>(
           std::vector<RequestCallbackSharedPtr>({std::make_shared<RequestProcessor>(
-              *this, configuration, upstream_kafka_facade, shared_consumer_manager)}))} {
-  ENVOY_LOG(info, "mesh-filter ctor");
+              *this, configuration, upstream_kafka_facade, shared_consumer_manager, fetch_purger)}))} {
+
+  std::ostringstream oss;
+  oss << std::this_thread::get_id();
+  ENVOY_LOG(info, "mesh-filter ctor in {}", oss.str());
 }
 
 KafkaMeshFilter::KafkaMeshFilter(RequestDecoderSharedPtr request_decoder)
-    : request_decoder_{request_decoder} {}
+    : request_decoder_{request_decoder} {
+}
 
 KafkaMeshFilter::~KafkaMeshFilter() {
-  ENVOY_LOG(info, "mesh-filter dtor");
+  std::ostringstream oss;
+  oss << std::this_thread::get_id();
+  ENVOY_LOG(info, "mesh-filter dtor in {}", oss.str());
   abandonAllInFlightRequests();
 }
 

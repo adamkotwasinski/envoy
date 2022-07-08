@@ -49,7 +49,8 @@ private:
   const UpstreamKafkaConfiguration& configuration_;
   Thread::ThreadFactory& thread_factory_;
 
-  std::map<std::string, KafkaConsumerPtr> topic_to_consumer_;
+  mutable absl::Mutex consumers_mutex_;
+  std::map<std::string, KafkaConsumerPtr> topic_to_consumer_ ABSL_GUARDED_BY(consumers_mutex_);
 };
 
 } // namespace Mesh
