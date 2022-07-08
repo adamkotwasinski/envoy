@@ -4,6 +4,8 @@
 
 #include "absl/synchronization/mutex.h"
 
+#include <thread>
+
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
@@ -12,11 +14,12 @@ namespace Mesh {
 
 FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
                                        SharedConsumerManager& consumer_manager,
+                                       FetchPurger& fetch_purger,
                                        const std::shared_ptr<Request<FetchRequest>> request)
-    : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, request_{request} {}
+    : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, fetch_purger_{fetch_purger}, request_{request} {}
 
 void FetchRequestHolder::startProcessing() {
-  ENVOY_LOG(info, "Fetch request received: CID={}", request_->request_header_.correlation_id_);
+  ENVOY_LOG(info, "Fetch request CID={} received in {}", request_->request_header_.correlation_id_, std::this_thread::get_id());
 
   const std::vector<FetchTopic>& topics = request_->data_.topics_;
   FetchSpec fetches_requested;
@@ -28,7 +31,10 @@ void FetchRequestHolder::startProcessing() {
       fetches_requested[topic_name].push_back(partition_id);
     }
   }
-  consumer_manager_.processFetches(shared_from_this(), fetches_requested);
+
+  auto self_reference = shared_from_this();
+  consumer_manager_.processFetches(self_reference, fetches_requested);
+  timer_ = fetch_purger_.track(request_->request_header_.correlation_id_, 2); // XXX Make this conditional in finished?
 
   // Corner case handling: ???
   if (finished()) {
@@ -54,7 +60,7 @@ bool FetchRequestHolder::isEligibleForSendingDownstream() const {
 
 bool FetchRequestHolder::finished() const { 
   const auto r = isEligibleForSendingDownstream();
-  ENVOY_LOG(info, "checking finish for CID{} -> {}", request_->request_header_.correlation_id_, r);
+  ENVOY_LOG(info, "checking finish for FR{} -> {}", request_->request_header_.correlation_id_, r);
   return r; // FIXME inline iEFSD?
 }
 
@@ -67,7 +73,7 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
 
   {
     absl::MutexLock lock(&messages_mutex_);
-    ENVOY_LOG(info, "response to CID{} has {} records", header.correlation_id_, messages_.size());
+    ENVOY_LOG(info, "response to FR{} has {} records", header.correlation_id_, messages_.size());
     processor_.transform(messages_);
   }
 

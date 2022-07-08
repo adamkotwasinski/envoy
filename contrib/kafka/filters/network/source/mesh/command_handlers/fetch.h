@@ -5,6 +5,9 @@
 #include "contrib/kafka/filters/network/source/mesh/shared_consumer_manager.h"
 #include "contrib/kafka/filters/network/source/mesh/upstream_kafka_consumer.h"
 #include "contrib/kafka/filters/network/source/mesh/command_handlers/fetch_record.h"
+#include "contrib/kafka/filters/network/source/mesh/fetch_purger.h"
+
+#include "envoy/event/timer.h"
 
 #include "absl/synchronization/mutex.h"
 
@@ -18,7 +21,7 @@ class FetchRequestHolder : public BaseInFlightRequest,
                            public RecordCb,
                            public std::enable_shared_from_this<FetchRequestHolder> {
 public:
-  FetchRequestHolder(AbstractRequestListener& filter, SharedConsumerManager& consumer_manager,
+  FetchRequestHolder(AbstractRequestListener& filter, SharedConsumerManager& consumer_manager, FetchPurger& fetch_purger,
                      const std::shared_ptr<Request<FetchRequest>> request);
 
   void startProcessing() override;
@@ -39,11 +42,15 @@ public:
 private:
   // Provides access to upstream-pointing consumers.
   SharedConsumerManager& consumer_manager_;
+  // Registers this fetch request's timeout just in case we get no data from upstream.
+  FetchPurger& fetch_purger_;
   // Original request.
   const std::shared_ptr<Request<FetchRequest>> request_;
   // The messages to send downstream.
   mutable absl::Mutex messages_mutex_;
   std::vector<RdKafkaMessagePtr> messages_ ABSL_GUARDED_BY(messages_mutex_);
+  // Timeout timer.
+  Event::TimerPtr timer_;
   // Translates librdkafka objects into bytes to be sent downstream.
   const FetchResponsePayloadProcessor processor_;
 };
