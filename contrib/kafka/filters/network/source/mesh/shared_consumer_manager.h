@@ -23,7 +23,9 @@ public:
 
   virtual int64_t listOffsets(std::string topic, int32_t partition) PURE;
 
-  virtual void processFetches(RecordCbSharedPtr callback, FetchSpec fetches) PURE; // const& ?
+  virtual void registerFetchCallback(RecordCbSharedPtr callback, FetchSpec fetches) PURE; // const& ?
+
+  //virtual void unregisterFetchCallback(RecordCbSharedPtr callback) PURE; // const& ?
 };
 
 using SharedConsumerManagerSharedPtr = std::shared_ptr<SharedConsumerManager>;
