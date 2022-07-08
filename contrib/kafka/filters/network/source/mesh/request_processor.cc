@@ -17,9 +17,10 @@ namespace Mesh {
 RequestProcessor::RequestProcessor(AbstractRequestListener& origin,
                                    const UpstreamKafkaConfiguration& configuration,
                                    UpstreamKafkaFacade& upstream_kafka_facade,
-                                   SharedConsumerManager& shared_consumer_manager)
+                                   SharedConsumerManager& shared_consumer_manager,
+                                   FetchPurger& fetch_purger)
     : origin_{origin}, configuration_{configuration}, upstream_kafka_facade_{upstream_kafka_facade},
-      shared_consumer_manager_{shared_consumer_manager} {}
+      shared_consumer_manager_{shared_consumer_manager}, fetch_purger_{fetch_purger} {}
 
 // Helper function. Throws a nice message. Filter will react by closing the connection.
 static void throwOnUnsupportedRequest(const std::string& reason, const RequestHeader& header) {
@@ -57,7 +58,7 @@ void RequestProcessor::process(const std::shared_ptr<Request<ProduceRequest>> re
 }
 
 void RequestProcessor::process(const std::shared_ptr<Request<FetchRequest>> request) const {
-  auto res = std::make_shared<FetchRequestHolder>(origin_, shared_consumer_manager_, request);
+  auto res = std::make_shared<FetchRequestHolder>(origin_, shared_consumer_manager_, fetch_purger_, request);
   origin_.onRequest(res);
 }
 

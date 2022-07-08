@@ -4,6 +4,8 @@
 
 #include "absl/synchronization/mutex.h"
 
+#include <thread>
+
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
@@ -12,11 +14,14 @@ namespace Mesh {
 
 FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
                                        SharedConsumerManager& consumer_manager,
+                                       FetchPurger& fetch_purger,
                                        const std::shared_ptr<Request<FetchRequest>> request)
-    : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, request_{request} {}
+    : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, fetch_purger_{fetch_purger}, request_{request} {}
 
 void FetchRequestHolder::startProcessing() {
-  ENVOY_LOG(info, "Fetch request received: CID={}", request_->request_header_.correlation_id_);
+  std::ostringstream oss;
+  oss << std::this_thread::get_id();
+  ENVOY_LOG(info, "Fetch request [{}] received in thread [{}]", request_->request_header_.correlation_id_, oss.str());
 
   const std::vector<FetchTopic>& topics = request_->data_.topics_;
   FetchSpec fetches_requested;
@@ -28,34 +33,78 @@ void FetchRequestHolder::startProcessing() {
       fetches_requested[topic_name].push_back(partition_id);
     }
   }
-  consumer_manager_.processFetches(shared_from_this(), fetches_requested);
 
-  // Corner case handling: ???
+  auto self_reference = shared_from_this();
+  consumer_manager_.registerFetchCallback(self_reference, fetches_requested);
+
+  // XXX Make this conditional in finished?
+  Event::TimerCb callback = [this]() -> void { 
+    markFinishedByTimer();
+  };
+  timer_ = fetch_purger_.track(callback, 1234);
+
+  // Extreme corner case: Fetch request without topics to fetch.
+  if (0 == fetches_requested.size()) {
+    absl::MutexLock lock(&state_mutex_);
+    ENVOY_LOG(info, "Fetch request [{}] finished by the virtue of requiring nothing", debugId());
+    markFinishedAndCleanup();
+  } //XXX to powinno byc w wielkim ifie ze wczesnym return
+
   if (finished()) {
     notifyFilter();
   }
 }
 
-bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
-  const auto& header = request_->request_header_;
-  ENVOY_LOG(info, "FRH receive CID{}: {}/{}", header.correlation_id_, message->partition(), message->offset() );
+void FetchRequestHolder::markFinishedByTimer() {
+  ENVOY_LOG(info, "Fetch request {} timed out", debugId());
   {
-    absl::MutexLock lock(&messages_mutex_);
-    messages_.push_back(std::move(message));
+    absl::MutexLock lock(&state_mutex_);
+    markFinishedAndCleanup();
   }
-  return !isEligibleForSendingDownstream();
+  notifyFilter();
 }
 
-bool FetchRequestHolder::isEligibleForSendingDownstream() const {
-  absl::MutexLock lock(&messages_mutex_);
-  // FIXME this needs to be better
-  return messages_.size() >= 1;
+// Remember this method is called by a non-Envoy thread.
+bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
+  {
+    absl::MutexLock lock(&state_mutex_);
+    if (!finished_) {
+      ENVOY_LOG(info, "Fetch request {} received message: {}/{}", debugId(), message->partition(), message->offset() );
+
+      messages_.push_back(std::move(message));
+
+      // XXX dyskusyjne
+      markFinishedAndCleanup();
+      //notifyFilterThruDispatcher();
+
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+}
+
+std::string FetchRequestHolder::debugId() const {
+  std::ostringstream oss;
+  oss << "[" << request_->request_header_.correlation_id_ << "]";
+  return oss.str();
+}
+
+int32_t FetchRequestHolder::id() const {
+  return request_->request_header_.correlation_id_;
+}
+
+void FetchRequestHolder::markFinishedAndCleanup() {
+  ENVOY_LOG(info, "Request {} marked as finished", debugId());
+  finished_ = true;
+  //auto self_reference = shared_from_this();
+  //consumer_manager_.unregisterFetchCallback(self_reference);
 }
 
 bool FetchRequestHolder::finished() const { 
-  const auto r = isEligibleForSendingDownstream();
-  ENVOY_LOG(info, "checking finish for CID{} -> {}", request_->request_header_.correlation_id_, r);
-  return r; // FIXME inline iEFSD?
+  absl::MutexLock lock(&state_mutex_);
+  return finished_;
 }
 
 AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
@@ -66,8 +115,8 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
   std::vector<FetchableTopicResponse> responses;
 
   {
-    absl::MutexLock lock(&messages_mutex_);
-    ENVOY_LOG(info, "response to CID{} has {} records", header.correlation_id_, messages_.size());
+    absl::MutexLock lock(&state_mutex_);
+    ENVOY_LOG(info, "Response to Fetch request {} has {} records, finished = {}", debugId(), messages_.size(), finished_);
     processor_.transform(messages_);
   }
 
