@@ -41,6 +41,8 @@ public:
    * finished processing.
    */
   virtual void abandon() PURE;
+
+  virtual int32_t id() const { return -1; }
 };
 
 using InFlightRequestSharedPtr = std::shared_ptr<InFlightRequest>;
