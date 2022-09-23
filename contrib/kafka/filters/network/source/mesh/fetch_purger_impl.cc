@@ -16,9 +16,7 @@ class ThreadLocalFetchPurger : public FetchPurger, public ThreadLocal::ThreadLoc
 public:
     ThreadLocalFetchPurger(Event::Dispatcher& dispatcher);
 
-    Event::TimerPtr track(/* tmp */ int32_t id, int32_t timeout) override;
-
-    void boom(/* tmp */ int32_t id);
+    Event::TimerPtr track(Event::TimerCb callback, int32_t timeout) override;
 private:
     Event::Dispatcher& dispatcher_;
 };
@@ -29,14 +27,7 @@ ThreadLocalFetchPurger::ThreadLocalFetchPurger(Event::Dispatcher& dispatcher): d
     ENVOY_LOG(info, "ThreadLocalFetchPurger ctor in {}", oss.str());
 }
 
-Event::TimerPtr ThreadLocalFetchPurger::track(/* tmp */ int32_t id, int32_t timeout) {
-    std::ostringstream oss;
-    oss << std::this_thread::get_id();
-    ENVOY_LOG(info, "TLFP tracking rq {} in {}", id, oss.str());
-
-    auto callback = [this, id]() -> void { 
-      ENVOY_LOG(info, "callback for {}", id);
-    };
+Event::TimerPtr ThreadLocalFetchPurger::track(Event::TimerCb callback, int32_t timeout) {
     auto event = dispatcher_.createTimer(callback);
     event->enableTimer(std::chrono::milliseconds(timeout));
     return event;
@@ -54,11 +45,8 @@ FetchPurgerImpl::FetchPurgerImpl(ThreadLocal::SlotAllocator& slot_allocator): tl
     tls_->set(cb);
 }
 
-Event::TimerPtr FetchPurgerImpl::track(/* tmp */ int32_t id, int32_t timeout) {
-    std::ostringstream oss;
-    oss << std::this_thread::get_id();
-    ENVOY_LOG(info, "FPI tracking rq {} in {}", id, oss.str());
-    return tls_->getTyped<ThreadLocalFetchPurger>().track(id, timeout);
+Event::TimerPtr FetchPurgerImpl::track(Event::TimerCb callback, int32_t timeout) {
+    return tls_->getTyped<ThreadLocalFetchPurger>().track(callback, timeout);
 };
 
 
