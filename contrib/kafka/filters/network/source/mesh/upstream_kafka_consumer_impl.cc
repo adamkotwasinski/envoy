@@ -109,7 +109,7 @@ RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory,
   for (auto pt = 0; pt < partition_count; ++pt) {
     RdKafkaTopicPartitionRawPtr topic_partition =
         RdKafka::TopicPartition::create(topic, pt, 0); // XXX (AK) initial offset???
-    assignment_.push_back(topic_partition);
+    //assignment_.push_back(topic_partition);
   }
   consumer_->assign(assignment_);
 
