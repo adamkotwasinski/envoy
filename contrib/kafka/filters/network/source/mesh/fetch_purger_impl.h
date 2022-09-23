@@ -16,7 +16,7 @@ class FetchPurgerImpl : public FetchPurger, private Logger::Loggable<Logger::Id:
 public:
     FetchPurgerImpl(ThreadLocal::SlotAllocator& slot_allocator);
 
-    Event::TimerPtr track(/* tmp */ int32_t id, int32_t timeout) override;
+    Event::TimerPtr track(Event::TimerCb callback, int32_t timeout) override;
 
 private:
     ThreadLocal::SlotPtr tls_;

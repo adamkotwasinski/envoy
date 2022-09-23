@@ -16,7 +16,7 @@ class FetchPurger {
 public:
     virtual ~FetchPurger() = default;
 
-    virtual Event::TimerPtr track(/* tmp */ int32_t id, int32_t timeout) PURE;
+    virtual Event::TimerPtr track(Event::TimerCb callback, int32_t timeout) PURE;
 };
 
 using FetchPurgerSharedPtr = std::shared_ptr<FetchPurger>;

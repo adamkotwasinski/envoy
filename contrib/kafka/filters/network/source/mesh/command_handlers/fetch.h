@@ -30,6 +30,11 @@ public:
 
   AbstractResponseSharedPtr computeAnswer() const override;
 
+  // Invoked by timer as this requests's time runs out.
+  // It is possible that this request has already been finished (there was data to send),
+  // then this method does nothing.
+  void markFinishedByTimer();
+
   // Whether the given fetch request should be sent downstream.
   // Typical cases are:
   // - it has enough records (meeting request's minimal requirements),
@@ -40,6 +45,9 @@ public:
   bool receive(RdKafkaMessagePtr message) override;
 
 private:
+  // ???
+  bool timed_out_;
+
   // Provides access to upstream-pointing consumers.
   SharedConsumerManager& consumer_manager_;
   // Registers this fetch request's timeout just in case we get no data from upstream.

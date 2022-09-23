@@ -38,13 +38,22 @@ void FetchRequestHolder::startProcessing() {
   //consumer_manager_.processFetches(self_reference, fetches_requested);
 
   // XXX Make this conditional in finished?
-  timer_ = fetch_purger_.track(request_->request_header_.correlation_id_, 500); 
+  Event::TimerCb callback = [this]() -> void { 
+    markFinishedByTimer();
+  };
+  timer_ = fetch_purger_.track(callback, 1234); 
 
-  // Corner case handling: ???
+  // Corner case handling: empty requested partition count, also other possible???
   if (finished()) {
     notifyFilter();
   }
   ENVOY_LOG(info, "Fetch request CID={} finished processing in {}", request_->request_header_.correlation_id_, oss.str());
+}
+
+void FetchRequestHolder::markFinishedByTimer() {
+  ENVOY_LOG(info, "Time ran out for {}", request_->request_header_.correlation_id_);
+  timed_out_ = true;
+  notifyFilter();
 }
 
 bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
@@ -54,7 +63,7 @@ bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
     absl::MutexLock lock(&messages_mutex_);
     messages_.push_back(std::move(message));
   }
-  return !isEligibleForSendingDownstream();
+  return !isEligibleForSendingDownstream(); // this might be wrong
 }
 
 bool FetchRequestHolder::isEligibleForSendingDownstream() const {
@@ -64,9 +73,7 @@ bool FetchRequestHolder::isEligibleForSendingDownstream() const {
 }
 
 bool FetchRequestHolder::finished() const { 
-  const auto r = isEligibleForSendingDownstream();
-  ENVOY_LOG(info, "checking finish for FR{} -> {}", request_->request_header_.correlation_id_, r);
-  return r; // FIXME inline iEFSD?
+  return timed_out_ || isEligibleForSendingDownstream();
 }
 
 AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
