@@ -24,11 +24,15 @@ private:
 };
 
 ThreadLocalFetchPurger::ThreadLocalFetchPurger(Event::Dispatcher& dispatcher): dispatcher_{dispatcher} {
-    ENVOY_LOG(info, "ThreadLocalFetchPurger ctor in {}", std::this_thread::get_id());
+    std::ostringstream oss;
+    oss << std::this_thread::get_id();
+    ENVOY_LOG(info, "ThreadLocalFetchPurger ctor in {}", oss.str());
 }
 
 Event::TimerPtr ThreadLocalFetchPurger::track(/* tmp */ int32_t id, int32_t timeout) {
-    ENVOY_LOG(info, "TLFP tracking rq {} in {}", id, std::this_thread::get_id());
+    std::ostringstream oss;
+    oss << std::this_thread::get_id();
+    ENVOY_LOG(info, "TLFP tracking rq {} in {}", id, oss.str());
 
     auto callback = [this, id]() -> void { 
       ENVOY_LOG(info, "callback for {}", id);
@@ -41,7 +45,9 @@ Event::TimerPtr ThreadLocalFetchPurger::track(/* tmp */ int32_t id, int32_t time
 // FetchPurger
 
 FetchPurgerImpl::FetchPurgerImpl(ThreadLocal::SlotAllocator& slot_allocator): tls_{slot_allocator.allocateSlot()} {
-    ENVOY_LOG(info, "FetchPurgerImpl ctor in {}", std::this_thread::get_id());
+    std::ostringstream oss;
+    oss << std::this_thread::get_id();
+    ENVOY_LOG(info, "FetchPurgerImpl ctor in {}", oss.str());
 
     ThreadLocal::Slot::InitializeCb cb =
       [](Event::Dispatcher& dispatcher) -> ThreadLocal::ThreadLocalObjectSharedPtr { return std::make_shared<ThreadLocalFetchPurger>(dispatcher); };
@@ -49,7 +55,9 @@ FetchPurgerImpl::FetchPurgerImpl(ThreadLocal::SlotAllocator& slot_allocator): tl
 }
 
 Event::TimerPtr FetchPurgerImpl::track(/* tmp */ int32_t id, int32_t timeout) {
-    ENVOY_LOG(info, "FPI tracking rq {} in {}", id, std::this_thread::get_id());
+    std::ostringstream oss;
+    oss << std::this_thread::get_id();
+    ENVOY_LOG(info, "FPI tracking rq {} in {}", id, oss.str());
     return tls_->getTyped<ThreadLocalFetchPurger>().track(id, timeout);
 };
 

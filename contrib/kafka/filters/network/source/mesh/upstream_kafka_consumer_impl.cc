@@ -219,9 +219,9 @@ void Store::processNewDelivery(RdKafkaMessagePtr message) {
     // XXX vector -> deque
     // XXX batching?
     const auto callback = matching_callbacks[0];
-    ENVOY_LOG(info, "notifying callback {} about delivery for partition {}", callback, partition);
+    ENVOY_LOG(info, "notifying callback {} about delivery for partition {}", (void*)(callback.get()), partition);
     bool callback_wants_more = callback->receive(std::move(message));
-    ENVOY_LOG(info, "callback {} wants more: {}", callback, callback_wants_more);
+    ENVOY_LOG(info, "callback {} wants more: {}", (void*)(callback.get()), callback_wants_more);
     if (!callback_wants_more) {
       eraseCallback(callback);
     }
