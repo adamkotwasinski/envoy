@@ -34,8 +34,8 @@ void FetchRequestHolder::startProcessing() {
     }
   }
 
-  //auto self_reference = shared_from_this();
-  //consumer_manager_.processFetches(self_reference, fetches_requested);
+  auto self_reference = shared_from_this();
+  consumer_manager_.processFetches(self_reference, fetches_requested);
 
   // XXX Make this conditional in finished?
   Event::TimerCb callback = [this]() -> void { 

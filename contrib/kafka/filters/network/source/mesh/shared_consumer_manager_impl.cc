@@ -25,11 +25,11 @@ int64_t SharedConsumerManagerImpl::listOffsets(std::string topic, int32_t partit
 void SharedConsumerManagerImpl::processFetches(RecordCbSharedPtr callback, FetchSpec fetches) {
   // For every fetch topic, figure out the upstream cluster, create consumer if needed, and put it
   // all aggregated.
-  for (const auto& f : fetches) {
-    const std::string& topic = f.first;
-    KafkaConsumer& consumer = getOrCreateConsumer(topic);
-    const std::vector<int32_t>& partitions = f.second;
-    consumer.registerInterest(callback, partitions);
+  for (const auto& fetch : fetches) {
+    const std::string& topic = fetch.first;
+    //KafkaConsumer& consumer = getOrCreateConsumer(topic);
+    const std::vector<int32_t>& partitions = fetch.second;
+    //consumer.registerInterest(callback, partitions);
   }
 }
 
@@ -41,6 +41,7 @@ KafkaConsumer& SharedConsumerManagerImpl::getOrCreateConsumer(const std::string&
 }
 
 KafkaConsumer& SharedConsumerManagerImpl::registerNewConsumer(const std::string& topic) {
+  ENVOY_LOG(info, "creating consumer for topic [{}]", topic);
   // Compute which upstream cluster corresponds to the topic.
   const absl::optional<ClusterConfig> cluster_config =
       configuration_.computeClusterConfigForTopic(topic);
