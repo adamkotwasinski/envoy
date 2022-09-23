@@ -33,8 +33,8 @@ void SharedConsumerManagerImpl::processFetches(RecordCbSharedPtr callback, Fetch
   }
 }
 
-// XXX this needs to be thread safe
 KafkaConsumer& SharedConsumerManagerImpl::getOrCreateConsumer(const std::string& topic) {
+  absl::MutexLock lock(&consumers_mutex_);
   const auto it = topic_to_consumer_.find(topic);
   // Return consumer already present or create new one and register it.
   return (topic_to_consumer_.end() == it) ? registerNewConsumer(topic) : *(it->second);
