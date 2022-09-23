@@ -37,9 +37,11 @@ public:
   int64_t listOffsets(std::string topic, int32_t partition) override;
 
   /**
-   *
+   * Registers a callback that is interested in messages for particular partitions.
    */
-  void processFetches(RecordCbSharedPtr callback, FetchSpec fetches) override;
+  void registerFetchCallback(RecordCbSharedPtr callback, FetchSpec fetches) override;
+
+  //void unregisterFetchCallback(RecordCbSharedPtr callback) override;
 
 private:
   KafkaConsumer& getOrCreateConsumer(const std::string& topic);

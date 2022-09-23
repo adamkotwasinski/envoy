@@ -91,6 +91,7 @@ void KafkaMeshFilter::onRequestReadyForAnswer() {
   while (!requests_in_flight_.empty()) {
     InFlightRequestSharedPtr rq = requests_in_flight_.front();
     if (rq->finished()) {
+      ENVOY_LOG(info, "Request [{}] is finished", rq->id());
       // The request has been finished, so we no longer need to store it.
       requests_in_flight_.erase(requests_in_flight_.begin());
 
