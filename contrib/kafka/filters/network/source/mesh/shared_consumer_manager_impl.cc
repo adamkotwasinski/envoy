@@ -27,7 +27,7 @@ void SharedConsumerManagerImpl::processFetches(RecordCbSharedPtr callback, Fetch
   // all aggregated.
   for (const auto& fetch : fetches) {
     const std::string& topic = fetch.first;
-    //KafkaConsumer& consumer = getOrCreateConsumer(topic);
+    KafkaConsumer& consumer = getOrCreateConsumer(topic);
     const std::vector<int32_t>& partitions = fetch.second;
     //consumer.registerInterest(callback, partitions);
   }
