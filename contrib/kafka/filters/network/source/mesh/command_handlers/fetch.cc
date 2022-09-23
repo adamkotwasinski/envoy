@@ -34,14 +34,15 @@ void FetchRequestHolder::startProcessing() {
     }
   }
 
-  auto self_reference = shared_from_this();
-  consumer_manager_.processFetches(self_reference, fetches_requested);
+  //auto self_reference = shared_from_this();
+  //consumer_manager_.processFetches(self_reference, fetches_requested);
   //timer_ = fetch_purger_.track(request_->request_header_.correlation_id_, 2); // XXX Make this conditional in finished?
 
   // Corner case handling: ???
   if (finished()) {
     notifyFilter();
   }
+  ENVOY_LOG(info, "Fetch request CID={} finished processing in {}", request_->request_header_.correlation_id_, oss.str());
 }
 
 bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
