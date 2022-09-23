@@ -10,8 +10,6 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
-// ThreadLocalFetchPurger
-
 class ThreadLocalFetchPurger : public FetchPurger, public ThreadLocal::ThreadLocalObject, private Logger::Loggable<Logger::Id::kafka> {
 public:
     ThreadLocalFetchPurger(Event::Dispatcher& dispatcher);
@@ -33,13 +31,7 @@ Event::TimerPtr ThreadLocalFetchPurger::track(Event::TimerCb callback, int32_t t
     return event;
 };
 
-// FetchPurger
-
 FetchPurgerImpl::FetchPurgerImpl(ThreadLocal::SlotAllocator& slot_allocator): tls_{slot_allocator.allocateSlot()} {
-    std::ostringstream oss;
-    oss << std::this_thread::get_id();
-    ENVOY_LOG(info, "FetchPurgerImpl ctor in {}", oss.str());
-
     ThreadLocal::Slot::InitializeCb cb =
       [](Event::Dispatcher& dispatcher) -> ThreadLocal::ThreadLocalObjectSharedPtr { return std::make_shared<ThreadLocalFetchPurger>(dispatcher); };
     tls_->set(cb);
@@ -48,7 +40,6 @@ FetchPurgerImpl::FetchPurgerImpl(ThreadLocal::SlotAllocator& slot_allocator): tl
 Event::TimerPtr FetchPurgerImpl::track(Event::TimerCb callback, int32_t timeout) {
     return tls_->getTyped<ThreadLocalFetchPurger>().track(callback, timeout);
 };
-
 
 } // namespace Mesh
 } // namespace Kafka
