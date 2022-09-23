@@ -110,6 +110,10 @@ RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory,
     RdKafkaTopicPartitionRawPtr topic_partition =
         RdKafka::TopicPartition::create(topic, pt, 0); // XXX (AK) initial offset???
     //assignment_.push_back(topic_partition);
+
+    RdKafkaTopicPartitionRawPtr tpt =
+        RdKafka::TopicPartition::create("potatoes", 0, 0); // XXX (AK) initial offset???
+    assignment_.push_back(tpt);
   }
   consumer_->assign(assignment_);
 
@@ -126,7 +130,7 @@ RichKafkaConsumer::~RichKafkaConsumer() {
 
   consumer_->unassign();
   consumer_->close();
-  RdKafka::TopicPartition::destroy(assignment_);
+  //RdKafka::TopicPartition::destroy(assignment_);
 
   ENVOY_LOG(info, "Kafka consumer [{}] closed succesfully", topic_);
 }
