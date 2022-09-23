@@ -36,7 +36,9 @@ void FetchRequestHolder::startProcessing() {
 
   //auto self_reference = shared_from_this();
   //consumer_manager_.processFetches(self_reference, fetches_requested);
-  //timer_ = fetch_purger_.track(request_->request_header_.correlation_id_, 2); // XXX Make this conditional in finished?
+
+  // XXX Make this conditional in finished?
+  timer_ = fetch_purger_.track(request_->request_header_.correlation_id_, 500); 
 
   // Corner case handling: ???
   if (finished()) {
