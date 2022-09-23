@@ -19,7 +19,9 @@ FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
     : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, fetch_purger_{fetch_purger}, request_{request} {}
 
 void FetchRequestHolder::startProcessing() {
-  ENVOY_LOG(info, "Fetch request CID={} received in {}", request_->request_header_.correlation_id_, std::this_thread::get_id());
+  std::ostringstream oss;
+  oss << std::this_thread::get_id();
+  ENVOY_LOG(info, "Fetch request CID={} received in {}", request_->request_header_.correlation_id_, oss.str());
 
   const std::vector<FetchTopic>& topics = request_->data_.topics_;
   FetchSpec fetches_requested;

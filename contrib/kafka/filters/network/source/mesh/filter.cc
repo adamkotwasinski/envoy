@@ -23,7 +23,10 @@ KafkaMeshFilter::KafkaMeshFilter(const UpstreamKafkaConfiguration& configuration
     : KafkaMeshFilter{std::make_shared<RequestDecoder>(
           std::vector<RequestCallbackSharedPtr>({std::make_shared<RequestProcessor>(
               *this, configuration, upstream_kafka_facade, shared_consumer_manager, fetch_purger)}))} {
-  ENVOY_LOG(info, "mesh-filter ctor in {}", std::this_thread::get_id());
+
+  std::ostringstream oss;
+  oss << std::this_thread::get_id();
+  ENVOY_LOG(info, "mesh-filter ctor in {}", oss.str());
 }
 
 KafkaMeshFilter::KafkaMeshFilter(RequestDecoderSharedPtr request_decoder)
@@ -31,7 +34,9 @@ KafkaMeshFilter::KafkaMeshFilter(RequestDecoderSharedPtr request_decoder)
 }
 
 KafkaMeshFilter::~KafkaMeshFilter() {
-  ENVOY_LOG(info, "mesh-filter dtor in {}", std::this_thread::get_id());
+  std::ostringstream oss;
+  oss << std::this_thread::get_id();
+  ENVOY_LOG(info, "mesh-filter dtor in {}", oss.str());
   abandonAllInFlightRequests();
 }
 
