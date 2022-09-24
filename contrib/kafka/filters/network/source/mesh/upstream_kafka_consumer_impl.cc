@@ -89,10 +89,12 @@ RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory,
   // Create consumer configuration object.
   std::unique_ptr<RdKafka::Conf> conf =
       std::unique_ptr<RdKafka::Conf>(RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL));
+
   std::string errstr;
 
   // Setup consumer custom properties.
   for (const auto& e : configuration) {
+    ENVOY_LOG(info, "setting prop {} -> {}", e.first, e.second);
     if (utils.setConfProperty(*conf, e.first, e.second, errstr) != RdKafka::Conf::CONF_OK) {
       throw EnvoyException(absl::StrCat("Could not set consumer property [", e.first, "] to [",
                                         e.second, "]:", errstr));
@@ -101,27 +103,28 @@ RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory,
 
   // Finally, we create the producer.
   consumer_ = utils.createConsumer(conf.get(), errstr);
-  ENVOY_LOG(info, "cc {}", errstr);
   if (!consumer_) {
     throw EnvoyException(absl::StrCat("Could not create consumer:", errstr));
   }
 
-/*
   // XXX (AK) abstract out.
   for (auto pt = 0; pt < partition_count; ++pt) {
     RdKafkaTopicPartitionRawPtr topic_partition =
         RdKafka::TopicPartition::create(topic, pt, 0); // XXX (AK) initial offset???
-    //assignment_.push_back(topic_partition);
+    assignment_.push_back(topic_partition);
   }
-*/
 
-  std::vector<RdKafka::TopicPartition*> assignment2;
-  RdKafka::TopicPartition* tpt = RdKafka::TopicPartition::create("potatoes", 0, 0); // XXX (AK) initial offset???
-  ENVOY_LOG(info, "tpt {}", (void*)(tpt));
-  ENVOY_LOG(info, "tpt {} {}", tpt->topic(), tpt->err());
-  assignment2.push_back(tpt);
+/*
+  std::vector<RdKafka::TopicPartition*> tps;
+  auto tp = RdKafka::TopicPartition::create("potatoes", 0, 0); // XXX (AK) initial offset???
+  ENVOY_LOG(info, "tpt {}", (void*)(tp));
+  ENVOY_LOG(info, "tpt {} {}", tp->topic(), tp->err());
+  tps.push_back(tp);
   ENVOY_LOG(info, "assign");
-  consumer_->assign(assignment2);
+  consumer_->assign(tps);
+*/
+  ENVOY_LOG(info, "assign");
+  consumer_->assign(assignment_);
 
   ENVOY_LOG(info, "start poller");
   poller_thread_active_ = true;
@@ -149,7 +152,8 @@ void RichKafkaConsumer::registerInterest(RecordCbSharedPtr callback,
 
 void RichKafkaConsumer::pollContinuously() {
   while (poller_thread_active_) {
-    if (store_.hasInterest()) {
+    //if (store_.hasInterest()) {
+    if (true) {
       ENVOY_LOG(info, "poll [{}]", topic_);
       std::vector<RdKafkaMessagePtr> batch = receiveMessageBatch();
       ENVOY_LOG(info, "poll [{}] -> {}", topic_, batch.size());
