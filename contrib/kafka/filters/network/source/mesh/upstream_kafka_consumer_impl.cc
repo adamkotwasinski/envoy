@@ -86,12 +86,12 @@ RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory,
                                      const LibRdKafkaUtils2& utils)
     : topic_{topic} {
 
-  // Create producer configuration object.
+  // Create consumer configuration object.
   std::unique_ptr<RdKafka::Conf> conf =
       std::unique_ptr<RdKafka::Conf>(RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL));
   std::string errstr;
 
-  // Setup producer custom properties.
+  // Setup consumer custom properties.
   for (const auto& e : configuration) {
     if (utils.setConfProperty(*conf, e.first, e.second, errstr) != RdKafka::Conf::CONF_OK) {
       throw EnvoyException(absl::StrCat("Could not set consumer property [", e.first, "] to [",
@@ -101,22 +101,29 @@ RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory,
 
   // Finally, we create the producer.
   consumer_ = utils.createConsumer(conf.get(), errstr);
+  ENVOY_LOG(info, "cc {}", errstr);
   if (!consumer_) {
     throw EnvoyException(absl::StrCat("Could not create consumer:", errstr));
   }
 
+/*
   // XXX (AK) abstract out.
   for (auto pt = 0; pt < partition_count; ++pt) {
     RdKafkaTopicPartitionRawPtr topic_partition =
         RdKafka::TopicPartition::create(topic, pt, 0); // XXX (AK) initial offset???
     //assignment_.push_back(topic_partition);
-
-    RdKafkaTopicPartitionRawPtr tpt =
-        RdKafka::TopicPartition::create("potatoes", 0, 0); // XXX (AK) initial offset???
-    assignment_.push_back(tpt);
   }
-  consumer_->assign(assignment_);
+*/
 
+  std::vector<RdKafka::TopicPartition*> assignment2;
+  RdKafka::TopicPartition* tpt = RdKafka::TopicPartition::create("potatoes", 0, 0); // XXX (AK) initial offset???
+  ENVOY_LOG(info, "tpt {}", (void*)(tpt));
+  ENVOY_LOG(info, "tpt {} {}", tpt->topic(), tpt->err());
+  assignment2.push_back(tpt);
+  ENVOY_LOG(info, "assign");
+  consumer_->assign(assignment2);
+
+  ENVOY_LOG(info, "start poller");
   poller_thread_active_ = true;
   std::function<void()> thread_routine = [this]() -> void { pollContinuously(); };
   poller_thread_ = thread_factory.createThread(thread_routine);
@@ -162,8 +169,7 @@ std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
   // This message kicks off librdkafka consumer's Fetch requests and delivers a message.
   RdKafkaMessagePtr first_message = std::unique_ptr<RdKafka::Message>(consumer_->consume(1000));
   if (RdKafka::ERR_NO_ERROR == first_message->err()) {
-    ENVOY_LOG(info, "received first message: pt={}, o={}", first_message->partition(),
-              first_message->offset());
+    ENVOY_LOG(info, "received first message: pt={}, o={}", first_message->partition(), first_message->offset());
     std::vector<RdKafkaMessagePtr> result;
     result.push_back(std::move(first_message));
     // We got a message, there could be something left in the buffer, so we try to drain it by
@@ -182,6 +188,7 @@ std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
     }
     return result;
   } else {
+    ENVOY_LOG(info, "received error: {}", first_message->err());
     return {};
   }
 }
