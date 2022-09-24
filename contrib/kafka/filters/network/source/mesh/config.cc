@@ -21,6 +21,8 @@
 #include "envoy/common/exception.h"
 #endif
 
+#include "librdkafka/rdkafkacpp.h"
+
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
@@ -56,6 +58,30 @@ Network::FilterFactoryCb KafkaMeshConfigFactory::createFilterFactoryFromProtoTyp
   // czyli dispatcher/worker thread
   // i w takim przypadku ten dispatcher tez jest skalowany per --concurrency
   // czyli my zarzadzamy cleaningiem
+
+/*
+  std::string errstr;
+  RdKafka::Conf *conf = RdKafka::Conf::create(RdKafka::Conf::CONF_GLOBAL);
+  if (conf->set("bootstrap.servers", "localhost:9494", errstr)) {
+    std::cerr << "wtf1" << errstr << std::endl;
+    exit(1);
+  }
+  if (conf->set("group.id", "potatoes", errstr)) {
+    std::cerr << "wtf2" << errstr << std::endl;
+    exit(1);
+  }
+  RdKafka::KafkaConsumer *consumer = RdKafka::KafkaConsumer::create(conf, errstr);
+  if (!consumer) {
+    std::cerr << "wtf3" << errstr << std::endl;
+    exit(1);
+  }
+  std::vector<RdKafka::TopicPartition*> tps;
+  auto tp = RdKafka::TopicPartition::create("cherries", 0, 0);
+  tps.push_back(tp);
+  RdKafka::ErrorCode err = consumer->assign(tps);
+  RdKafka::Message *msg = consumer->consume(1000);
+  std::cerr << "wtf4" << msg->err() << std::endl;
+  */
 
   return [configuration, upstream_kafka_facade,
           shared_consumer_manager, fetch_purger](Network::FilterManager& filter_manager) -> void {
