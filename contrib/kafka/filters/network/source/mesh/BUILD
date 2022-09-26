@@ -29,7 +29,6 @@ envoy_cc_contrib_extension(
             ":fetch_purger_impl_lib",
             ":upstream_config_lib",
             ":upstream_kafka_facade_lib",
-            envoy_external_dep_path("librdkafka"),
         ],
     }),
 )
