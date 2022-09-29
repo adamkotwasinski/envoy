@@ -7,14 +7,13 @@ namespace Kafka {
 namespace Mesh {
 
 std::vector<FetchableTopicResponse> FetchResponsePayloadProcessor::transform(const std::vector<RdKafkaMessagePtr>& arg) const {
-    ENVOY_LOG(info, "transforming {} records", arg.size());
+    ENVOY_LOG(info, "Transforming {} records", arg.size());
     std::vector<FetchableTopicResponse> result;
 
     for (const auto& message : arg) {
-        ENVOY_LOG(info, "processing {}/{}", message->partition(), message->offset());
+        ENVOY_LOG(info, "Processing {}/{}", message->partition(), message->offset());
     }
 
-    
     return result;
     // The librdkafka messages are finally freed here.
 }

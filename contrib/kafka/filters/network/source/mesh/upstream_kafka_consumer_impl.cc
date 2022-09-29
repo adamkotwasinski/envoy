@@ -114,33 +114,23 @@ RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory,
     assignment_.push_back(topic_partition);
   }
 
-/*
-  std::vector<RdKafka::TopicPartition*> tps;
-  auto tp = RdKafka::TopicPartition::create("potatoes", 0, 0); // XXX (AK) initial offset???
-  ENVOY_LOG(info, "tpt {}", (void*)(tp));
-  ENVOY_LOG(info, "tpt {} {}", tp->topic(), tp->err());
-  tps.push_back(tp);
-  ENVOY_LOG(info, "assign");
-  consumer_->assign(tps);
-*/
-  ENVOY_LOG(info, "assign");
   consumer_->assign(assignment_);
 
-  ENVOY_LOG(info, "start poller");
+  ENVOY_LOG(info, "Starting poller for topic [{}]", topic_);
   poller_thread_active_ = true;
   std::function<void()> thread_routine = [this]() -> void { pollContinuously(); };
   poller_thread_ = thread_factory.createThread(thread_routine);
 }
 
 RichKafkaConsumer::~RichKafkaConsumer() {
-  ENVOY_LOG(info, "Closing Kafka consumer for topic [{}]", topic_);
+  ENVOY_LOG(info, "Closing Kafka consumer [{}]", topic_);
 
   poller_thread_active_ = false;
   poller_thread_->join();
 
   consumer_->unassign();
   consumer_->close();
-  //RdKafka::TopicPartition::destroy(assignment_);
+  RdKafka::TopicPartition::destroy(assignment_);
 
   ENVOY_LOG(info, "Kafka consumer [{}] closed succesfully", topic_);
 }
@@ -152,16 +142,15 @@ void RichKafkaConsumer::registerInterest(RecordCbSharedPtr callback,
 
 void RichKafkaConsumer::pollContinuously() {
   while (poller_thread_active_) {
-    //if (store_.hasInterest()) {
-    if (true) {
-      ENVOY_LOG(info, "poll [{}]", topic_);
+    if (store_.hasInterest()) {
       std::vector<RdKafkaMessagePtr> batch = receiveMessageBatch();
-      ENVOY_LOG(info, "poll [{}] -> {}", topic_, batch.size());
+      if (0 != batch.size()) {
+        ENVOY_LOG(info, "poll [{}] -> {}", topic_, batch.size());
+      }
       store_.processNewDeliveries(std::move(batch));
     } else {
-      // there's no interest in any messages, just sleep for now
-      //ENVOY_LOG(info, "no interest now, sleeping");
-      std::this_thread::sleep_for(std::chrono::seconds(1));
+      // There's no interest in any messages, just sleep for now.
+      std::this_thread::sleep_for(std::chrono::seconds(1)); // XXX break on interest
     }
   }
   ENVOY_LOG(debug, "Poller thread for consumer [{}] finished", topic_);
@@ -173,7 +162,7 @@ std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
   // This message kicks off librdkafka consumer's Fetch requests and delivers a message.
   RdKafkaMessagePtr first_message = std::unique_ptr<RdKafka::Message>(consumer_->consume(1000));
   if (RdKafka::ERR_NO_ERROR == first_message->err()) {
-    ENVOY_LOG(info, "received first message: pt={}, o={}", first_message->partition(), first_message->offset());
+    ENVOY_LOG(info, "Received first message: pt={}, o={}", first_message->partition(), first_message->offset());
     std::vector<RdKafkaMessagePtr> result;
     result.push_back(std::move(first_message));
     // We got a message, there could be something left in the buffer, so we try to drain it by

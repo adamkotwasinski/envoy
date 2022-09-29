@@ -35,7 +35,7 @@ void FetchRequestHolder::startProcessing() {
   }
 
   auto self_reference = shared_from_this();
-  consumer_manager_.processFetches(self_reference, fetches_requested);
+  consumer_manager_.registerFetchCallback(self_reference, fetches_requested);
 
   // XXX Make this conditional in finished?
   Event::TimerCb callback = [this]() -> void { 
@@ -58,7 +58,7 @@ void FetchRequestHolder::markFinishedByTimer() {
 
 bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
   const auto& header = request_->request_header_;
-  ENVOY_LOG(info, "FRH receive CID{}: {}/{}", header.correlation_id_, message->partition(), message->offset() );
+  ENVOY_LOG(info, "Fetch request {} received message: {}/{}", header.correlation_id_, message->partition(), message->offset() );
   {
     absl::MutexLock lock(&messages_mutex_);
     messages_.push_back(std::move(message));
@@ -85,7 +85,7 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
 
   {
     absl::MutexLock lock(&messages_mutex_);
-    ENVOY_LOG(info, "response to FR{} has {} records", header.correlation_id_, messages_.size());
+    ENVOY_LOG(info, "Response to FR{} has {} records", header.correlation_id_, messages_.size());
     processor_.transform(messages_);
   }
 
