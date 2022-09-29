@@ -18,18 +18,28 @@ SharedConsumerManagerImpl::SharedConsumerManagerImpl(
   ENVOY_LOG(info, "SCM ctor");
 }
 
-SharedConsumerManagerImpl::~SharedConsumerManagerImpl() { ENVOY_LOG(info, "SCM dtor"); }
+SharedConsumerManagerImpl::~SharedConsumerManagerImpl() { 
+  ENVOY_LOG(info, "SCM dtor");
+}
 
-int64_t SharedConsumerManagerImpl::listOffsets(std::string topic, int32_t partition) { return 0; }
+int64_t SharedConsumerManagerImpl::listOffsets(std::string topic, int32_t partition) { 
+  // Very early implementation - right now we start from beginning no matter what.
+  return 0;
+}
 
-void SharedConsumerManagerImpl::processFetches(RecordCbSharedPtr callback, FetchSpec fetches) {
-  // For every fetch topic, figure out the upstream cluster, create consumer if needed, and put it
-  // all aggregated.
+void SharedConsumerManagerImpl::registerFetchCallback(RecordCbSharedPtr callback, FetchSpec fetches) {
+  // For every fetch topic, figure out the upstream cluster,
+  // create consumer if needed, and make it aware of interest.
+
+  std::ostringstream oss;
+  oss << std::this_thread::get_id();
+  ENVOY_LOG(info, "Registering interest in thread {}", oss.str());
+
   for (const auto& fetch : fetches) {
     const std::string& topic = fetch.first;
     KafkaConsumer& consumer = getOrCreateConsumer(topic);
     const std::vector<int32_t>& partitions = fetch.second;
-    //consumer.registerInterest(callback, partitions);
+    consumer.registerInterest(callback, partitions);
   }
 }
 
@@ -41,7 +51,7 @@ KafkaConsumer& SharedConsumerManagerImpl::getOrCreateConsumer(const std::string&
 }
 
 KafkaConsumer& SharedConsumerManagerImpl::registerNewConsumer(const std::string& topic) {
-  ENVOY_LOG(info, "creating consumer for topic [{}]", topic);
+  ENVOY_LOG(info, "Creating consumer for topic [{}]", topic);
   // Compute which upstream cluster corresponds to the topic.
   const absl::optional<ClusterConfig> cluster_config =
       configuration_.computeClusterConfigForTopic(topic);
