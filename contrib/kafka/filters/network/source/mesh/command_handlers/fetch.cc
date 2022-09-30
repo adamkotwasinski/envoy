@@ -21,7 +21,7 @@ FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
 void FetchRequestHolder::startProcessing() {
   std::ostringstream oss;
   oss << std::this_thread::get_id();
-  ENVOY_LOG(info, "Fetch request [{}] received in {}", request_->request_header_.correlation_id_, oss.str());
+  ENVOY_LOG(info, "Fetch request [{}] received in thread [{}]", request_->request_header_.correlation_id_, oss.str());
 
   const std::vector<FetchTopic>& topics = request_->data_.topics_;
   FetchSpec fetches_requested;
@@ -46,6 +46,7 @@ void FetchRequestHolder::startProcessing() {
   // Extreme corner case: Fetch request without topics to fetch.
   if (0 == fetches_requested.size()) {
     absl::MutexLock lock(&state_mutex_);
+    ENVOY_LOG(info, "Fetch request [{}] finished by the virtue of requiring nothing", debugId());
     markFinishedAndCleanup();
   } //XXX to powinno byc w wielkim ifie ze wczesnym return
 
@@ -55,7 +56,7 @@ void FetchRequestHolder::startProcessing() {
 }
 
 void FetchRequestHolder::markFinishedByTimer() {
-  ENVOY_LOG(info, "Fetch request [{}] timed out", request_->request_header_.correlation_id_);
+  ENVOY_LOG(info, "Fetch request {} timed out", debugId());
   {
     absl::MutexLock lock(&state_mutex_);
     markFinishedAndCleanup();
@@ -68,9 +69,7 @@ bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
   {
     absl::MutexLock lock(&state_mutex_);
     if (!finished_) {
-
-      const auto& header = request_->request_header_;
-      ENVOY_LOG(info, "Fetch request [{}] received message: {}/{}", debugId(), message->partition(), message->offset() );
+      ENVOY_LOG(info, "Fetch request {} received message: {}/{}", debugId(), message->partition(), message->offset() );
 
       messages_.push_back(std::move(message));
 
@@ -86,8 +85,10 @@ bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
   }
 }
 
-int32_t FetchRequestHolder::debugId() const {
-  return request_->request_header_.correlation_id_;
+std::string FetchRequestHolder::debugId() const {
+  std::ostringstream oss;
+  oss << "[" << request_->request_header_.correlation_id_ << "]";
+  return oss.str();
 }
 
 void FetchRequestHolder::markFinishedAndCleanup() {
@@ -110,7 +111,7 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
 
   {
     absl::MutexLock lock(&state_mutex_);
-    ENVOY_LOG(info, "Response to Fetch request [{}] has {} records", header.correlation_id_, messages_.size());
+    ENVOY_LOG(info, "Response to Fetch request {} has {} records", debugId(), messages_.size());
     processor_.transform(messages_);
   }
 
