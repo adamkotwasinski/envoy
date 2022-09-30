@@ -145,25 +145,25 @@ void RichKafkaConsumer::pollContinuously() {
     if (store_.hasInterest()) { /* this should change 'what partitions are we interested in' */
       std::vector<RdKafkaMessagePtr> batch = receiveMessageBatch();
       if (0 != batch.size()) {
-        store_.processNewDeliveries(std::move(batch));
+        store_.processNewDeliveries(batch);
       }
     } else {
       // There's no interest in any messages, just sleep for now.
       std::this_thread::sleep_for(std::chrono::seconds(1)); // XXX break on interest
     }
   }
-  ENVOY_LOG(debug, "Poller thread for consumer [{}] finished", topic_);
+  ENVOY_LOG(info, "Poller thread for consumer [{}] finished", topic_);
 }
 
 //const static int32_t BUFFER_DRAIN_VOLUME = 5;
 
 std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
   // This message kicks off librdkafka consumer's Fetch requests and delivers a message.
-  RdKafkaMessagePtr first_message = std::unique_ptr<RdKafka::Message>(consumer_->consume(1000));
+  RdKafkaMessagePtr first_message = std::shared_ptr<RdKafka::Message>(consumer_->consume(1000));
   if (RdKafka::ERR_NO_ERROR == first_message->err()) {
     ENVOY_LOG(info, "Received message: {}-{}, offset={}", first_message->topic_name(), first_message->partition(), first_message->offset());
     std::vector<RdKafkaMessagePtr> result;
-    result.push_back(std::move(first_message));
+    result.push_back(first_message);
 
     /*
     // We got a message, there could be something left in the buffer, so we try to drain it by
@@ -174,7 +174,7 @@ std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
         // There was a message in the buffer.
         ENVOY_LOG(info, "received buffered message: pt={}, o={}", buffered_message->partition(),
                   buffered_message->offset());
-        result.push_back(std::move(buffered_message));
+        result.push_back(buffered_message);
       } else {
         // Buffer is empty / consumer is failing - there is nothing more to consume.
         break;
@@ -215,7 +215,7 @@ void Store::registerInterest(RecordCbSharedPtr callback, const std::vector<int32
 
 void Store::processNewDeliveries(std::vector<RdKafkaMessagePtr> messages) {
   for (auto& message : messages) {
-    processNewDelivery(std::move(message));
+    processNewDelivery(message);
   }
 }
 
@@ -226,7 +226,7 @@ void Store::processNewDelivery(RdKafkaMessagePtr message) {
     // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
     const auto callback = matching_callbacks[0];
     ENVOY_LOG(info, "Notifying callback {} about delivery for partition {}", callback->debugId(), partition);
-    bool callback_accepted = callback->receive(std::move(message));
+    bool callback_accepted = callback->receive(message);
     if (callback_accepted) {
       ENVOY_LOG(info, "Callback {} accepted message, notifying and removing", callback->debugId());
       eraseCallback(callback); // XXX ???
@@ -243,7 +243,7 @@ void Store::processNewDelivery(RdKafkaMessagePtr message) {
   {
     absl::MutexLock lock(&data_mutex_);
     auto& stored_messages = messages_waiting_for_interest_[partition];
-    stored_messages.push_back(std::move(message));
+    stored_messages.push_back(message);
     // XXX if size() > x block OR throw ???
   }
   */
