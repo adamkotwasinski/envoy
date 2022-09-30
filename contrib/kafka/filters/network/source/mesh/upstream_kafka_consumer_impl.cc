@@ -6,7 +6,7 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
-// AAA
+// AAA!!!1111
 std::string stringify(const std::vector<int32_t> arg) {
   std::ostringstream oss;
   oss << "[";
@@ -94,7 +94,7 @@ RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory,
 
   // Setup consumer custom properties.
   for (const auto& e : configuration) {
-    ENVOY_LOG(info, "setting prop {} -> {}", e.first, e.second);
+    ENVOY_LOG(info, "Setting consumer property {}={}", e.first, e.second);
     if (utils.setConfProperty(*conf, e.first, e.second, errstr) != RdKafka::Conf::CONF_OK) {
       throw EnvoyException(absl::StrCat("Could not set consumer property [", e.first, "] to [",
                                         e.second, "]:", errstr));
@@ -142,12 +142,11 @@ void RichKafkaConsumer::registerInterest(RecordCbSharedPtr callback,
 
 void RichKafkaConsumer::pollContinuously() {
   while (poller_thread_active_) {
-    if (store_.hasInterest()) {
+    if (store_.hasInterest()) { /* this should change 'what partitions are we interested in' */
       std::vector<RdKafkaMessagePtr> batch = receiveMessageBatch();
       if (0 != batch.size()) {
-        ENVOY_LOG(info, "poll [{}] -> {}", topic_, batch.size());
+        store_.processNewDeliveries(std::move(batch));
       }
-      store_.processNewDeliveries(std::move(batch));
     } else {
       // There's no interest in any messages, just sleep for now.
       std::this_thread::sleep_for(std::chrono::seconds(1)); // XXX break on interest
@@ -156,15 +155,17 @@ void RichKafkaConsumer::pollContinuously() {
   ENVOY_LOG(debug, "Poller thread for consumer [{}] finished", topic_);
 }
 
-const static int32_t BUFFER_DRAIN_VOLUME = 5;
+//const static int32_t BUFFER_DRAIN_VOLUME = 5;
 
 std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
   // This message kicks off librdkafka consumer's Fetch requests and delivers a message.
   RdKafkaMessagePtr first_message = std::unique_ptr<RdKafka::Message>(consumer_->consume(1000));
   if (RdKafka::ERR_NO_ERROR == first_message->err()) {
-    ENVOY_LOG(info, "Received first message: pt={}, o={}", first_message->partition(), first_message->offset());
+    ENVOY_LOG(info, "Received a message: pt={}, o={}", first_message->partition(), first_message->offset());
     std::vector<RdKafkaMessagePtr> result;
     result.push_back(std::move(first_message));
+
+    /*
     // We got a message, there could be something left in the buffer, so we try to drain it by
     // consuming without waiting. See: https://github.com/edenhill/librdkafka/discussions/3897
     while (result.size() < BUFFER_DRAIN_VOLUME) {
@@ -179,9 +180,12 @@ std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
         break;
       }
     }
+    */
+
+
     return result;
   } else {
-    ENVOY_LOG(info, "received error: {}", first_message->err());
+    ENVOY_LOG(info, "Received error: {}", first_message->err());
     return {};
   }
 }
@@ -196,7 +200,13 @@ bool Store::hasInterest() const {
 }
 
 void Store::registerInterest(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions) {
-  ENVOY_LOG(info, "registering callback for partitions {}", stringify(partitions));
+  std::ostringstream oss;
+  oss << std::this_thread::get_id();
+  ENVOY_LOG(info, "Registering callback for partitions {} in {}", stringify(partitions), oss.str());
+
+  // drain 'messages_waiting_for_interest_' here???
+  for (const int32_t partition : partitions) {
+  }
 
   for (const int32_t partition : partitions) {
     auto& partition_callbacks = partition_to_callbacks_[partition];
@@ -210,33 +220,38 @@ void Store::processNewDeliveries(std::vector<RdKafkaMessagePtr> messages) {
   }
 }
 
-// XXX there was something funny around printing topic here, check this out
-
 void Store::processNewDelivery(RdKafkaMessagePtr message) {
   const int32_t partition = message->partition();
-  ENVOY_LOG(info, "new delivery received for partition {}: offset = {}", partition, message->offset());
+  // XXX there was something funny around printing topic here, check this out
+  ENVOY_LOG(info, "New delivery received for partition {}: offset = {}", partition, message->offset());
 
   auto& matching_callbacks = partition_to_callbacks_[partition];
   if (!matching_callbacks.empty()) {
-    // Typical case: there is some interest in messages for given partition.
-    // Notify the callback and remove it.
-    // XXX vector -> deque
-    // XXX batching?
+    // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
     const auto callback = matching_callbacks[0];
-    ENVOY_LOG(info, "notifying callback {} about delivery for partition {}", (void*)(callback.get()), partition);
-    bool callback_wants_more = callback->receive(std::move(message));
-    ENVOY_LOG(info, "callback {} wants more: {}", (void*)(callback.get()), callback_wants_more);
-    if (!callback_wants_more) {
+    ENVOY_LOG(info, "Notifying callback {} about delivery for partition {}", (void*)(callback.get()), partition);
+    bool callback_accepted = callback->receive(std::move(message));
+    ENVOY_LOG(info, "Callback {} accepted: {}, removing", (void*)(callback.get()), callback_accepted);
+    if (callback_accepted) {
       eraseCallback(callback);
+      return;
     }
-  } else {
-    // We consume from all partitions, but there is noone interested in records present in this one.
-    // Keep it for now.
-    ENVOY_LOG(info, "storing message (offset={}) for partition {}", message->offset(), partition);
+  } 
+  
+
+  // We consume from all partitions, but there is noone interested in records present in this one.
+  // Keep it for now.
+  ENVOY_LOG(info, "storing message (offset={}) for partition {}", message->offset(), partition);
+  // message can be null now b/c of callback :(
+  /*
+  {
+    absl::MutexLock lock(&data_mutex_);
     auto& stored_messages = messages_waiting_for_interest_[partition];
     stored_messages.push_back(std::move(message));
-    // XXX if size() > x block OR throw
+    // XXX if size() > x block OR throw ???
   }
+  */
+
 }
 
 void Store::eraseCallback(RecordCbSharedPtr callback) {

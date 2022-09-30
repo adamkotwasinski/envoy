@@ -64,9 +64,12 @@ private:
 
   void eraseCallback(RecordCbSharedPtr callback);
 
-  std::map<int32_t, std::vector<RecordCbSharedPtr>> partition_to_callbacks_;
-  std::map<int32_t, std::vector<RdKafkaMessagePtr>> messages_waiting_for_interest_;
-  std::vector<int32_t> paused_partitions_;
+  mutable absl::Mutex callbacks_mutex_;
+  std::map<int32_t, std::vector<RecordCbSharedPtr>> partition_to_callbacks_ ABSL_GUARDED_BY(callbacks_mutex_);
+
+  mutable absl::Mutex data_mutex_;
+  std::map<int32_t, std::vector<RdKafkaMessagePtr>> messages_waiting_for_interest_ ABSL_GUARDED_BY(data_mutex_);
+  std::vector<int32_t> paused_partitions_ ABSL_GUARDED_BY(data_mutex_);
 };
 
 class RichKafkaConsumer : public KafkaConsumer, private Logger::Loggable<Logger::Id::kafka> {

@@ -41,39 +41,61 @@ void FetchRequestHolder::startProcessing() {
   Event::TimerCb callback = [this]() -> void { 
     markFinishedByTimer();
   };
-  timer_ = fetch_purger_.track(callback, 1234); 
+  timer_ = fetch_purger_.track(callback, 1234);
 
-  // Corner case handling: empty requested partition count, also other possible???
+  // Extreme corner case: Fetch request without topics to fetch.
+  if (0 == fetches_requested.size()) {
+    absl::MutexLock lock(&state_mutex_);
+    markFinishedAndCleanup();
+  } //XXX to powinno byc w wielkim ifie ze wczesnym return
+
   if (finished()) {
     notifyFilter();
   }
-  ENVOY_LOG(info, "Fetch request CID={} finished processing in {}", request_->request_header_.correlation_id_, oss.str());
 }
 
 void FetchRequestHolder::markFinishedByTimer() {
   ENVOY_LOG(info, "Time ran out for {}", request_->request_header_.correlation_id_);
-  timed_out_ = true;
+  {
+    absl::MutexLock lock(&state_mutex_);
+    markFinishedAndCleanup();
+  }
   notifyFilter();
 }
 
+// Remember this method is called by a non-Envoy thread.
 bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
-  const auto& header = request_->request_header_;
-  ENVOY_LOG(info, "Fetch request {} received message: {}/{}", header.correlation_id_, message->partition(), message->offset() );
   {
-    absl::MutexLock lock(&messages_mutex_);
-    messages_.push_back(std::move(message));
+    absl::MutexLock lock(&state_mutex_);
+    if (!finished_) {
+
+      const auto& header = request_->request_header_;
+      ENVOY_LOG(info, "Fetch request {} received message: {}/{}", header.correlation_id_, message->partition(), message->offset() );
+
+      messages_.push_back(std::move(message));
+
+      // XXX dyskusyjne
+      markFinishedAndCleanup();
+      //notifyFilterThruDispatcher();
+
+      return true;
+    }
+    else {
+      return false;
+    }
   }
-  return !isEligibleForSendingDownstream(); // this might be wrong
+
 }
 
-bool FetchRequestHolder::isEligibleForSendingDownstream() const {
-  absl::MutexLock lock(&messages_mutex_);
-  // FIXME this needs to be better
-  return messages_.size() >= 1;
+void FetchRequestHolder::markFinishedAndCleanup() {
+  finished_ = true;
+  auto self_reference = shared_from_this();
+  consumer_manager_.unregisterFetchCallback(self_reference);
 }
 
 bool FetchRequestHolder::finished() const { 
-  return timed_out_ || isEligibleForSendingDownstream();
+  absl::MutexLock lock(&state_mutex_);
+  return finished_;
 }
 
 AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
@@ -84,7 +106,7 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
   std::vector<FetchableTopicResponse> responses;
 
   {
-    absl::MutexLock lock(&messages_mutex_);
+    absl::MutexLock lock(&state_mutex_);
     ENVOY_LOG(info, "Response to FR{} has {} records", header.correlation_id_, messages_.size());
     processor_.transform(messages_);
   }
