@@ -161,7 +161,7 @@ std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
   // This message kicks off librdkafka consumer's Fetch requests and delivers a message.
   RdKafkaMessagePtr first_message = std::unique_ptr<RdKafka::Message>(consumer_->consume(1000));
   if (RdKafka::ERR_NO_ERROR == first_message->err()) {
-    ENVOY_LOG(info, "Received a message: pt={}, o={}", first_message->partition(), first_message->offset());
+    ENVOY_LOG(info, "Received message: {}-{}, offset={}", first_message->topic_name(), first_message->partition(), first_message->offset());
     std::vector<RdKafkaMessagePtr> result;
     result.push_back(std::move(first_message));
 
@@ -182,7 +182,6 @@ std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
     }
     */
 
-
     return result;
   } else {
     ENVOY_LOG(info, "Received error: {}", first_message->err());
@@ -202,7 +201,7 @@ bool Store::hasInterest() const {
 void Store::registerInterest(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions) {
   std::ostringstream oss;
   oss << std::this_thread::get_id();
-  ENVOY_LOG(info, "Registering callback for partitions {} in {}", stringify(partitions), oss.str());
+  ENVOY_LOG(info, "Registering callback [{}] for partitions {} in thread [{}]", (void*)(callback.get()), stringify(partitions), oss.str());
 
   // drain 'messages_waiting_for_interest_' here???
   for (const int32_t partition : partitions) {
@@ -222,26 +221,23 @@ void Store::processNewDeliveries(std::vector<RdKafkaMessagePtr> messages) {
 
 void Store::processNewDelivery(RdKafkaMessagePtr message) {
   const int32_t partition = message->partition();
-  // XXX there was something funny around printing topic here, check this out
-  ENVOY_LOG(info, "New delivery received for partition {}: offset = {}", partition, message->offset());
-
   auto& matching_callbacks = partition_to_callbacks_[partition];
   if (!matching_callbacks.empty()) {
     // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
     const auto callback = matching_callbacks[0];
-    ENVOY_LOG(info, "Notifying callback {} about delivery for partition {}", (void*)(callback.get()), partition);
+    ENVOY_LOG(info, "Notifying callback [{}] about delivery for partition {}", (void*)(callback.get()), partition);
     bool callback_accepted = callback->receive(std::move(message));
-    ENVOY_LOG(info, "Callback {} accepted: {}, removing", (void*)(callback.get()), callback_accepted);
     if (callback_accepted) {
-      eraseCallback(callback);
-      return;
+      ENVOY_LOG(info, "Callback [{}] accepted, notifying and removing", (void*)(callback.get()));
+      eraseCallback(callback); // XXX ???
+    } else {
+      ENVOY_LOG(info, "Callback [{}] rejected", (void*)(callback.get()));
     }
   } 
-  
 
   // We consume from all partitions, but there is noone interested in records present in this one.
   // Keep it for now.
-  ENVOY_LOG(info, "storing message (offset={}) for partition {}", message->offset(), partition);
+  // ENVOY_LOG(info, "storing message (offset={}) for partition {}", message->offset(), partition);
   // message can be null now b/c of callback :(
   /*
   {
@@ -261,7 +257,7 @@ void Store::eraseCallback(RecordCbSharedPtr callback) {
     partition_callbacks.erase(std::remove(partition_callbacks.begin(), partition_callbacks.end(), callback), partition_callbacks.end());
     ++i;
   }
-  ENVOY_LOG(info, "removed {} callbacks", i);
+  //ENVOY_LOG(info, "Removed {} callback(s)", i);
 }
 
 } // namespace Mesh

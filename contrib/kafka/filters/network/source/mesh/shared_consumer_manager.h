@@ -25,7 +25,7 @@ public:
 
   virtual void registerFetchCallback(RecordCbSharedPtr callback, FetchSpec fetches) PURE; // const& ?
 
-  virtual void unregisterFetchCallback(RecordCbSharedPtr callback) PURE; // const& ?
+  //virtual void unregisterFetchCallback(RecordCbSharedPtr callback) PURE; // const& ?
 };
 
 using SharedConsumerManagerSharedPtr = std::shared_ptr<SharedConsumerManager>;

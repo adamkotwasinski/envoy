@@ -70,7 +70,7 @@ bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
     if (!finished_) {
 
       const auto& header = request_->request_header_;
-      ENVOY_LOG(info, "Fetch request {} received message: {}/{}", header.correlation_id_, message->partition(), message->offset() );
+      ENVOY_LOG(info, "Fetch request [{}] received message: {}/{}", header.correlation_id_, message->partition(), message->offset() );
 
       messages_.push_back(std::move(message));
 
@@ -89,8 +89,8 @@ bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
 
 void FetchRequestHolder::markFinishedAndCleanup() {
   finished_ = true;
-  auto self_reference = shared_from_this();
-  consumer_manager_.unregisterFetchCallback(self_reference);
+  //auto self_reference = shared_from_this();
+  //consumer_manager_.unregisterFetchCallback(self_reference);
 }
 
 bool FetchRequestHolder::finished() const { 
@@ -107,7 +107,7 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
 
   {
     absl::MutexLock lock(&state_mutex_);
-    ENVOY_LOG(info, "Response to FR{} has {} records", header.correlation_id_, messages_.size());
+    ENVOY_LOG(info, "Response to Fetch request [{}] has {} records", header.correlation_id_, messages_.size());
     processor_.transform(messages_);
   }
 
