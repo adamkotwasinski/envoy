@@ -21,7 +21,7 @@ FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
 void FetchRequestHolder::startProcessing() {
   std::ostringstream oss;
   oss << std::this_thread::get_id();
-  ENVOY_LOG(info, "Fetch request [{}] received in thread [{}]", request_->request_header_.correlation_id_, oss.str());
+  ENVOY_LOG(info, "Fetch request [{}] has been received in thread [{}]", request_->request_header_.correlation_id_, oss.str());
 
   const std::vector<FetchTopic>& topics = request_->data_.topics_;
   FetchSpec fetches_requested;
@@ -65,22 +65,33 @@ void FetchRequestHolder::markFinishedByTimer() {
 }
 
 // Remember this method is called by a non-Envoy thread.
-bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
+Reply FetchRequestHolder::receive(RdKafkaMessagePtr message) {
   {
     absl::MutexLock lock(&state_mutex_);
     if (!finished_) {
-      ENVOY_LOG(info, "Fetch request {} received message: {}/{}", debugId(), message->partition(), message->offset() );
+      const KafkaPartition kp = { message->topic_name(), message->partition() };
+      messages_[kp].push_back(message);
+      
+      uint32_t current_messages = 0;
+      for (const auto& e : messages_) {
+        current_messages += e.second.size();
+      }
 
-      messages_.push_back(std::move(message));
-
-      // XXX dyskusyjne
-      markFinishedAndCleanup();
-      //notifyFilterThruDispatcher();
-
-      return true;
+      if (current_messages < 3) {
+        // XXX we want 3 messages at least!
+        ENVOY_LOG(info, "Fetch request {} processed message (and wants more {}): {}/{}", debugId(), current_messages, message->partition(), message->offset());
+        return Reply::ACCEPTED_AND_WANT_MORE;
+      } else {
+        ENVOY_LOG(info, "Fetch request {} processed message (and is finished {}): {}/{}", debugId(), current_messages, message->partition(), message->offset());
+        // We have all we needed, we can finish processing.
+        markFinishedAndCleanup();
+        //notifyFilterThruDispatcher();
+        return Reply::ACCEPTED_AND_FINISHED;
+      }
     }
     else {
-      return false;
+      ENVOY_LOG(info, "Fetch request {} rejected message: {}/{}", debugId(), message->partition(), message->offset());
+      return Reply::REJECTED;
     }
   }
 }
@@ -113,22 +124,10 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
 
   const int32_t throttle_time_ms = 0;
   std::vector<FetchableTopicResponse> responses;
-
   {
     absl::MutexLock lock(&state_mutex_);
-    ENVOY_LOG(info, "Response to Fetch request {} has {} records, finished = {}", debugId(), messages_.size(), finished_);
-    processor_.transform(messages_);
-  }
-
-  /* hack - no data for now */
-  for (const auto& ft : request_->data_.topics_) {
-    std::vector<FetchResponseResponsePartitionData> partitions;
-    for (const auto& ftp : ft.partitions_) {
-      FetchResponseResponsePartitionData frpd = {ftp.partition_, 0, 0, absl::nullopt};
-      partitions.push_back(frpd);
-    }
-    FetchableTopicResponse ftr = {ft.topic_, partitions, TaggedFields{}};
-    responses.push_back(ftr);
+    ENVOY_LOG(info, "Response to Fetch request {} has {} topics, finished = {}", debugId(), messages_.size(), finished_);
+    responses = processor_.transform(messages_);
   }
 
   const FetchResponse data = {throttle_time_ms, responses};

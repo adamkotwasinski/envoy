@@ -78,7 +78,23 @@ envoy_cc_library(
     deps = [
         "//source/common/common:minimal_logger_lib", 
         "//contrib/kafka/filters/network/source:kafka_response_parser_lib",
+        "//source/common/buffer:buffer_lib",
+        ":crc_lib",
         envoy_external_dep_path("librdkafka"),
+        ":produce_record_extractor_lib",
+    ],
+)
+
+envoy_cc_library(
+    name = "crc_lib",
+    srcs = [
+        "crc.c",
+    ],
+    hdrs = [
+        "crc.h",
+    ],
+    tags = ["skip_on_windows"],
+    deps = [
     ],
 )
 

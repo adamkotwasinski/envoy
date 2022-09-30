@@ -67,6 +67,11 @@ private:
   mutable absl::Mutex callbacks_mutex_;
   std::map<int32_t, std::vector<RecordCbSharedPtr>> partition_to_callbacks_ ABSL_GUARDED_BY(callbacks_mutex_);
 
+  /**
+   * Invariant: for every i, the following holds:
+   * !(partition_to_callbacks_[i].size() >= 0 && messages_waiting_for_interest_[i].size() >= 0)
+   */
+
   mutable absl::Mutex data_mutex_;
   std::map<int32_t, std::vector<RdKafkaMessagePtr>> messages_waiting_for_interest_ ABSL_GUARDED_BY(data_mutex_);
   std::vector<int32_t> paused_partitions_ ABSL_GUARDED_BY(data_mutex_);
