@@ -155,37 +155,40 @@ void RichKafkaConsumer::pollContinuously() {
   ENVOY_LOG(info, "Poller thread for consumer [{}] finished", topic_);
 }
 
-//const static int32_t BUFFER_DRAIN_VOLUME = 5;
+const static int32_t BUFFER_DRAIN_VOLUME = 5;
 
 std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
   // This message kicks off librdkafka consumer's Fetch requests and delivers a message.
-  RdKafkaMessagePtr first_message = std::shared_ptr<RdKafka::Message>(consumer_->consume(1000));
-  if (RdKafka::ERR_NO_ERROR == first_message->err()) {
-    ENVOY_LOG(info, "Received message: {}-{}, offset={}", first_message->topic_name(), first_message->partition(), first_message->offset());
-    std::vector<RdKafkaMessagePtr> result;
-    result.push_back(first_message);
+  RdKafkaMessagePtr message = std::shared_ptr<RdKafka::Message>(consumer_->consume(1000));
+  switch (message->err()) {
+    case RdKafka::ERR_NO_ERROR: {
+      ENVOY_LOG(info, "Received message: {}-{}, offset={}", message->topic_name(), message->partition(), message->offset());
+      std::vector<RdKafkaMessagePtr> result;
+      result.push_back(message);
 
-    /*
-    // We got a message, there could be something left in the buffer, so we try to drain it by
-    // consuming without waiting. See: https://github.com/edenhill/librdkafka/discussions/3897
-    while (result.size() < BUFFER_DRAIN_VOLUME) {
-      RdKafkaMessagePtr buffered_message = std::unique_ptr<RdKafka::Message>(consumer_->consume(0));
-      if (RdKafka::ERR_NO_ERROR == buffered_message->err()) {
-        // There was a message in the buffer.
-        ENVOY_LOG(info, "received buffered message: pt={}, o={}", buffered_message->partition(),
-                  buffered_message->offset());
-        result.push_back(buffered_message);
-      } else {
-        // Buffer is empty / consumer is failing - there is nothing more to consume.
-        break;
+      // We got a message, there could be something left in the buffer, so we try to drain it by
+      // consuming without waiting. See: https://github.com/edenhill/librdkafka/discussions/3897
+      while (result.size() < BUFFER_DRAIN_VOLUME) {
+        RdKafkaMessagePtr buffered_message = std::unique_ptr<RdKafka::Message>(consumer_->consume(0));
+        if (RdKafka::ERR_NO_ERROR == buffered_message->err()) {
+          // There was a message in the buffer.
+          ENVOY_LOG(info, "Received buffered message: {}-{}, offset={}", buffered_message->topic_name(), buffered_message->partition(), buffered_message->offset());
+          result.push_back(buffered_message);
+        } else {
+          // Buffer is empty / consumer is failing - there is nothing more to consume.
+          break;
+        }
       }
+      return result;
     }
-    */
-
-    return result;
-  } else {
-    ENVOY_LOG(info, "Received error: {}", first_message->err());
-    return {};
+    case RdKafka::ERR__TIMED_OUT: {
+      ENVOY_LOG(info, "Timed out in [{}]", topic_);
+      return {};
+    }
+    default: {
+      ENVOY_LOG(info, "Received other error: {} / {}", message->err(), RdKafka::err2str(message->err()));
+      return {};
+    }
   }
 }
 
@@ -203,13 +206,53 @@ void Store::registerInterest(RecordCbSharedPtr callback, const std::vector<int32
   oss << std::this_thread::get_id();
   ENVOY_LOG(info, "Registering callback {} for partitions {} in thread [{}]", callback->debugId(), stringify(partitions), oss.str());
 
-  // drain 'messages_waiting_for_interest_' here???
-  for (const int32_t partition : partitions) {
+  bool fulfilled_at_startup = false;
+
+  {
+    absl::MutexLock lock(&data_mutex_);
+    for (const int32_t partition : partitions) {
+
+      auto& stored_messages = messages_waiting_for_interest_[partition];
+
+      if (0 != stored_messages.size()) {
+        ENVOY_LOG(info, "Early notification for callback {}, as there are {} messages ready", callback->debugId(), stored_messages.size());
+      }
+
+      for (auto it = stored_messages.begin(); it != stored_messages.end();) {
+        Reply callback_status = callback->receive(*it);
+        bool callback_finished;
+        switch (callback_status) {
+          case Reply::ACCEPTED_AND_FINISHED: {
+            callback_finished = true;
+            it = stored_messages.erase(it);
+            break;
+          }
+          case Reply::ACCEPTED_AND_WANT_MORE: {
+            callback_finished = false;
+            it = stored_messages.erase(it);
+            break;
+          }
+          case Reply::REJECTED: {
+            callback_finished = true;
+            break;
+          }
+        } /* switch */
+        if (callback_finished) {
+          fulfilled_at_startup = true;
+          break; // Callback does not want any messages anymore.
+        }
+      } /* for-messages */
+
+    }
   }
 
-  for (const int32_t partition : partitions) {
-    auto& partition_callbacks = partition_to_callbacks_[partition];
-    partition_callbacks.push_back(callback);
+  if (!fulfilled_at_startup) {
+    for (const int32_t partition : partitions) {
+      auto& partition_callbacks = partition_to_callbacks_[partition];
+      partition_callbacks.push_back(callback);
+    }
+  } else {
+    ENVOY_LOG(info, "No registration for callback {} due to successful early processing", callback->debugId());
   }
 }
 
@@ -222,32 +265,42 @@ void Store::processNewDeliveries(std::vector<RdKafkaMessagePtr> messages) {
 void Store::processNewDelivery(RdKafkaMessagePtr message) {
   const int32_t partition = message->partition();
   auto& matching_callbacks = partition_to_callbacks_[partition];
-  if (!matching_callbacks.empty()) {
-    // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
-    const auto callback = matching_callbacks[0];
-    ENVOY_LOG(info, "Notifying callback {} about delivery for partition {}", callback->debugId(), partition);
-    bool callback_accepted = callback->receive(message);
-    if (callback_accepted) {
-      ENVOY_LOG(info, "Callback {} accepted message, notifying and removing", callback->debugId());
-      eraseCallback(callback); // XXX ???
-    } else {
-      ENVOY_LOG(info, "Callback {} rejected message", callback->debugId());
-    }
-  } 
+  bool consumed = false;
 
-  // We consume from all partitions, but there is noone interested in records present in this one.
-  // Keep it for now.
-  // ENVOY_LOG(info, "storing message (offset={}) for partition {}", message->offset(), partition);
-  // message can be null now b/c of callback :(
-  /*
-  {
+  // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
+  if (!matching_callbacks.empty()) {
+    const auto callback = matching_callbacks[0]; // XXX this should be a for loop across all callbacks
+    Reply callback_status = callback->receive(message);
+    switch (callback_status) {
+      case Reply::ACCEPTED_AND_FINISHED: {
+        consumed = true;
+        eraseCallback(callback); // XXX ???
+        break;
+      }
+      case Reply::ACCEPTED_AND_WANT_MORE: {
+        consumed = true;
+        break;
+      }
+      case Reply::REJECTED: {
+        break;
+      }
+    }
+  }
+
+  // Noone is interested in our message, so we are going to store it in a local cache.
+  if (!consumed) {
     absl::MutexLock lock(&data_mutex_);
     auto& stored_messages = messages_waiting_for_interest_[partition];
-    stored_messages.push_back(message);
-    // XXX if size() > x block OR throw ???
-  }
-  */
+    stored_messages.push_back(message); // XXX limits?
 
+    // debug: count all present
+    int total = 0;
+    for (auto& e : messages_waiting_for_interest_) {
+      total += e.second.size();
+    }
+
+    ENVOY_LOG(info, "Stored message [{}] for partition {}, there are now {} messages stored", message->offset(), partition, total);
+  }
 }
 
 void Store::eraseCallback(RecordCbSharedPtr callback) {

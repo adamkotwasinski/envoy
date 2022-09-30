@@ -18,14 +18,20 @@ namespace Mesh {
 // FIXME duplicate of _impl.h
 using RdKafkaMessagePtr = std::shared_ptr<RdKafka::Message>;
 
+enum class Reply {
+  REJECTED,
+  ACCEPTED_AND_WANT_MORE,
+  ACCEPTED_AND_FINISHED,
+};
+
 // Callback for objects that want to be notified that new Kafka record has been received.
 class RecordCb {
 public:
   virtual ~RecordCb() = default;
 
   // Notify the callback that with a message.
-  // @return whether the calback could accept the message
-  virtual bool receive(RdKafkaMessagePtr message) PURE;
+  // @return whether the callback could accept the message
+  virtual Reply receive(RdKafkaMessagePtr message) PURE;
 
   virtual std::string debugId() const PURE;
 };
