@@ -270,14 +270,22 @@ void Store::processNewDelivery(RdKafkaMessagePtr message) {
   // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
   if (!matching_callbacks.empty()) {
     const auto callback = matching_callbacks[0]; // XXX this should be a for loop across all callbacks
-    ENVOY_LOG(info, "Notifying callback {} about delivery for partition {}", callback->debugId(), partition);
     Reply callback_status = callback->receive(message);
-    if (Reply::ACCEPTED_AND_FINISHED == callback_status) {
-      ENVOY_LOG(info, "Erasing callback {}", callback->debugId());
-      eraseCallback(callback); // XXX ???
-      consumed = true;
+    switch (callback_status) {
+      case Reply::ACCEPTED_AND_FINISHED: {
+        consumed = true;
+        eraseCallback(callback); // XXX ???
+        break;
+      }
+      case Reply::ACCEPTED_AND_WANT_MORE: {
+        consumed = true;
+        break;
+      }
+      case Reply::REJECTED: {
+        break;
+      }
     }
-  } 
+  }
 
   // Noone is interested in our message, so we are going to store it in a local cache.
   if (!consumed) {

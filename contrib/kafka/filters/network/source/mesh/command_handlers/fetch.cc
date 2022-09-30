@@ -21,7 +21,7 @@ FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
 void FetchRequestHolder::startProcessing() {
   std::ostringstream oss;
   oss << std::this_thread::get_id();
-  ENVOY_LOG(info, "Fetch request [{}] received in thread [{}]", request_->request_header_.correlation_id_, oss.str());
+  ENVOY_LOG(info, "Fetch request [{}] has been received in thread [{}]", request_->request_header_.correlation_id_, oss.str());
 
   const std::vector<FetchTopic>& topics = request_->data_.topics_;
   FetchSpec fetches_requested;
@@ -69,15 +69,18 @@ Reply FetchRequestHolder::receive(RdKafkaMessagePtr message) {
   {
     absl::MutexLock lock(&state_mutex_);
     if (!finished_) {
-      ENVOY_LOG(info, "Fetch request {} accepted message: {}/{}", debugId(), message->partition(), message->offset());
-
-      messages_.push_back(std::move(message));
-
-      // XXX dyskusyjne
-      markFinishedAndCleanup();
-      //notifyFilterThruDispatcher();
-
-      return Reply::ACCEPTED_AND_FINISHED;
+      messages_.push_back(message);
+      if (messages_.size() < 3) {
+        // XXX we want 3 messages at least!
+        ENVOY_LOG(info, "Fetch request {} processed message (and wants more): {}/{}", debugId(), message->partition(), message->offset());
+        return Reply::ACCEPTED_AND_WANT_MORE;
+      } else {
+        ENVOY_LOG(info, "Fetch request {} processed message (and is finished): {}/{}", debugId(), message->partition(), message->offset());
+        // We have all we needed, we can finish processing.
+        markFinishedAndCleanup();
+        //notifyFilterThruDispatcher();
+        return Reply::ACCEPTED_AND_FINISHED;
+      }
     }
     else {
       ENVOY_LOG(info, "Fetch request {} rejected message: {}/{}", debugId(), message->partition(), message->offset());
