@@ -21,7 +21,7 @@ FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
 void FetchRequestHolder::startProcessing() {
   std::ostringstream oss;
   oss << std::this_thread::get_id();
-  ENVOY_LOG(info, "Fetch request CID={} received in {}", request_->request_header_.correlation_id_, oss.str());
+  ENVOY_LOG(info, "Fetch request [{}] received in {}", request_->request_header_.correlation_id_, oss.str());
 
   const std::vector<FetchTopic>& topics = request_->data_.topics_;
   FetchSpec fetches_requested;
@@ -55,7 +55,7 @@ void FetchRequestHolder::startProcessing() {
 }
 
 void FetchRequestHolder::markFinishedByTimer() {
-  ENVOY_LOG(info, "Time ran out for {}", request_->request_header_.correlation_id_);
+  ENVOY_LOG(info, "Fetch request [{}] timed out", request_->request_header_.correlation_id_);
   {
     absl::MutexLock lock(&state_mutex_);
     markFinishedAndCleanup();
@@ -70,7 +70,7 @@ bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
     if (!finished_) {
 
       const auto& header = request_->request_header_;
-      ENVOY_LOG(info, "Fetch request [{}] received message: {}/{}", header.correlation_id_, message->partition(), message->offset() );
+      ENVOY_LOG(info, "Fetch request [{}] received message: {}/{}", debugId(), message->partition(), message->offset() );
 
       messages_.push_back(std::move(message));
 
@@ -84,7 +84,10 @@ bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
       return false;
     }
   }
+}
 
+int32_t FetchRequestHolder::debugId() const {
+  return request_->request_header_.correlation_id_;
 }
 
 void FetchRequestHolder::markFinishedAndCleanup() {
