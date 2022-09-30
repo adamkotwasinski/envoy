@@ -45,6 +45,9 @@ public:
   // RecordCb
   bool receive(RdKafkaMessagePtr message) override;
 
+  // RecordCB
+  int32_t debugId() const override;
+
 private:
 
   // Invoked internally when we want to mark this Fetch request as done.

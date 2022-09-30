@@ -26,6 +26,8 @@ public:
   // Notify the callback that with a message.
   // @return whether the calback could accept the message
   virtual bool receive(RdKafkaMessagePtr message) PURE;
+
+  virtual int32_t debugId() const PURE;
 };
 
 using RecordCbSharedPtr = std::shared_ptr<RecordCb>;
