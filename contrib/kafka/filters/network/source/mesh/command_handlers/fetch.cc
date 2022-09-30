@@ -91,7 +91,12 @@ std::string FetchRequestHolder::debugId() const {
   return oss.str();
 }
 
+int32_t FetchRequestHolder::id() const {
+  return request_->request_header_.correlation_id_;
+}
+
 void FetchRequestHolder::markFinishedAndCleanup() {
+  ENVOY_LOG(info, "Request {} marked as finished", debugId());
   finished_ = true;
   //auto self_reference = shared_from_this();
   //consumer_manager_.unregisterFetchCallback(self_reference);
@@ -111,7 +116,7 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
 
   {
     absl::MutexLock lock(&state_mutex_);
-    ENVOY_LOG(info, "Response to Fetch request {} has {} records", debugId(), messages_.size());
+    ENVOY_LOG(info, "Response to Fetch request {} has {} records, finished = {}", debugId(), messages_.size(), finished_);
     processor_.transform(messages_);
   }
 
