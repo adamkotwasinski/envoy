@@ -43,11 +43,12 @@ public:
   // bool isEligibleForSendingDownstream() const;
 
   // RecordCb
-  bool receive(RdKafkaMessagePtr message) override;
+  Reply receive(RdKafkaMessagePtr message) override;
 
-  // RecordCB
+  // RecordCb
   std::string debugId() const override;
 
+  //XXX
   int32_t id() const override;
 
 private:
@@ -67,7 +68,7 @@ private:
   // Whether this request has finished processing and is ready for sending upstream.
   bool finished_ ABSL_GUARDED_BY(state_mutex_) = false;
   // The messages to send downstream.
-  std::vector<RdKafkaMessagePtr> messages_ ABSL_GUARDED_BY(state_mutex_);
+  std::map<KafkaPartition, std::vector<RdKafkaMessagePtr>> messages_ ABSL_GUARDED_BY(state_mutex_);
 
   // Timeout timer.
   Event::TimerPtr timer_;

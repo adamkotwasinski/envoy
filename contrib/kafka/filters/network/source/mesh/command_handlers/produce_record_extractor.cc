@@ -63,6 +63,7 @@ std::vector<OutboundRecord> RecordExtractorImpl::extractPartitionRecords(const s
     throw EnvoyException(fmt::format("unknown magic value in record batch for [{}-{}]: {}", topic,
                                      partition, magic));
   }
+  ENVOY_LOG(info, "magic = {}", magic);
 
   // We have received a record batch with good magic.
   return processRecordBatch(topic, partition, data);
@@ -91,6 +92,17 @@ std::vector<OutboundRecord> RecordExtractorImpl::processRecordBatch(const std::s
   }
   data = {data.data() + IGNORED_FIELDS_SIZE, data.length() - IGNORED_FIELDS_SIZE};
 
+  ENVOY_LOG(info, "checking {} bytes", data.length());
+
+  std::ostringstream oss;
+  oss << "[";
+  for (int i = 0; i < data.length(); ++i) {
+    const int32_t var = data[i];
+    oss << var << ", ";
+  }
+  oss << "]";
+  ENVOY_LOG(info, "array = {}", oss.str());
+
   // We have managed to consume all the fancy bytes, now it's time to get to records.
   std::vector<OutboundRecord> result;
   while (!data.empty()) {
@@ -106,12 +118,13 @@ OutboundRecord RecordExtractorImpl::extractRecord(const std::string& topic, cons
                                                   absl::string_view& data) const {
 
   VarInt32Deserializer length;
-  length.feed(data);
+  auto clen = length.feed(data);
   if (!length.ready()) {
     throw EnvoyException(
         fmt::format("record for [{}-{}] is too short (no length)", topic, partition));
   }
   const int32_t len = length.get();
+  ENVOY_LOG(info, "we expect record to be {} bytes long (ate {})", len, clen);
   if (len < 0) {
     throw EnvoyException(
         fmt::format("record for [{}-{}] has invalid length: {}", topic, partition, len));
@@ -126,11 +139,14 @@ OutboundRecord RecordExtractorImpl::extractRecord(const std::string& topic, cons
   // We throw away the following batch fields: attributes, timestamp delta, offset delta (cannot do
   // an easy jump, as some are variable-length).
   Int8Deserializer attributes;
-  attributes.feed(data);
+  auto cattr = attributes.feed(data);
+  ENVOY_LOG(info, "attr = {} ({})", attributes.get(), cattr);
   VarInt64Deserializer tsDelta;
-  tsDelta.feed(data);
+  auto ctsd = tsDelta.feed(data);
+  ENVOY_LOG(info, "ts delta = {} ({})", tsDelta.get(), ctsd);
   VarUInt32Deserializer offsetDelta;
-  offsetDelta.feed(data);
+  auto cofd = offsetDelta.feed(data);
+  ENVOY_LOG(info, "offset delta = {} ({})", offsetDelta.get(), cofd);
   if (!attributes.ready() || !tsDelta.ready() || !offsetDelta.ready()) {
     throw EnvoyException(
         fmt::format("attributes not present in record for [{}-{}]", topic, partition));
@@ -162,19 +178,22 @@ OutboundRecord RecordExtractorImpl::extractRecord(const std::string& topic, cons
 
   if (data == expected_end_of_record) {
     // We have consumed everything nicely.
+    ENVOY_LOG(info, "record processed OK");
     return OutboundRecord{topic, partition, key, value, headers};
   } else {
     // Bad data - there are bytes left.
     throw EnvoyException(fmt::format("data left after consuming record for [{}-{}]: {}", topic,
                                      partition, data.length()));
   }
+  
 }
 
 absl::string_view RecordExtractorImpl::extractByteArray(absl::string_view& input) {
 
   // Get the length.
   VarInt32Deserializer length_deserializer;
-  length_deserializer.feed(input);
+  auto cc = length_deserializer.feed(input);
+  ENVOY_LOG(info, "len cons = {}", cc);
   if (!length_deserializer.ready()) {
     throw EnvoyException("byte array length not present");
   }

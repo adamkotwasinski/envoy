@@ -24,7 +24,7 @@ public:
  * Proper implementation of record extractor, capable of parsing V2 record set.
  * Reference: https://kafka.apache.org/24/documentation/#messageformat
  */
-class RecordExtractorImpl : public RecordExtractor {
+class RecordExtractorImpl : public RecordExtractor, private Logger::Loggable<Logger::Id::kafka> {
 public:
   // RecordExtractor
   std::vector<OutboundRecord>
@@ -34,7 +34,6 @@ public:
   // interesting fields in records are kept as variable-encoded length and following bytes.
   static absl::string_view extractByteArray(absl::string_view& input);
 
-private:
   std::vector<OutboundRecord> extractPartitionRecords(const std::string& topic,
                                                       const int32_t partition,
                                                       const Bytes& records) const;
