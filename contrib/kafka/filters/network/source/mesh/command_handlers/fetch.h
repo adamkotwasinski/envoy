@@ -48,6 +48,8 @@ public:
   // RecordCB
   std::string debugId() const override;
 
+  int32_t id() const override;
+
 private:
 
   // Invoked internally when we want to mark this Fetch request as done.
@@ -63,7 +65,7 @@ private:
 
   mutable absl::Mutex state_mutex_;
   // Whether this request has finished processing and is ready for sending upstream.
-  bool finished_ ABSL_GUARDED_BY(state_mutex_);
+  bool finished_ ABSL_GUARDED_BY(state_mutex_) = false;
   // The messages to send downstream.
   std::vector<RdKafkaMessagePtr> messages_ ABSL_GUARDED_BY(state_mutex_);
 
