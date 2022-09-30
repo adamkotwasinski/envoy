@@ -17,7 +17,7 @@ namespace Kafka {
 namespace Mesh {
 
 // FIXME its triplicate now!
-using RdKafkaMessagePtr = std::unique_ptr<RdKafka::Message>;
+using RdKafkaMessagePtr = std::shared_ptr<RdKafka::Message>;
 
 class FetchResponsePayloadProcessor : private Logger::Loggable<Logger::Id::kafka> {
 public:
