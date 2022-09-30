@@ -203,13 +203,36 @@ void Store::registerInterest(RecordCbSharedPtr callback, const std::vector<int32
   oss << std::this_thread::get_id();
   ENVOY_LOG(info, "Registering callback {} for partitions {} in thread [{}]", callback->debugId(), stringify(partitions), oss.str());
 
+  bool notified_early_path = false;
+
   // drain 'messages_waiting_for_interest_' here???
-  for (const int32_t partition : partitions) {
+  {
+    absl::MutexLock lock(&data_mutex_);
+    for (const int32_t partition : partitions) {
+      auto& stored_messages = messages_waiting_for_interest_[partition];
+      if (0 != stored_messages.size()) {
+        ENVOY_LOG(info, "Early notification for callback {}, as there are {} messages ready", callback->debugId(), stored_messages.size());
+
+        for (auto it = stored_messages.begin(); it != stored_messages.end();) {
+          bool accepted = callback->receive(*it);
+          if (accepted) {
+            notified_early_path = true;
+            it = stored_messages.erase(it);
+          } else {
+            break;
+          }
+        }
+      }
+    }
   }
 
-  for (const int32_t partition : partitions) {
-    auto& partition_callbacks = partition_to_callbacks_[partition];
-    partition_callbacks.push_back(callback);
+  if (!notified_early_path) {
+    for (const int32_t partition : partitions) {
+      auto& partition_callbacks = partition_to_callbacks_[partition];
+      partition_callbacks.push_back(callback);
+    }
+  } else {
+    ENVOY_LOG(info, "No registration for callback {} due to early processing", callback->debugId());
   }
 }
 
@@ -222,32 +245,34 @@ void Store::processNewDeliveries(std::vector<RdKafkaMessagePtr> messages) {
 void Store::processNewDelivery(RdKafkaMessagePtr message) {
   const int32_t partition = message->partition();
   auto& matching_callbacks = partition_to_callbacks_[partition];
+  bool consumed = false;
+
+  // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
   if (!matching_callbacks.empty()) {
-    // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
-    const auto callback = matching_callbacks[0];
+    const auto callback = matching_callbacks[0]; // XXX this should be a for loop
     ENVOY_LOG(info, "Notifying callback {} about delivery for partition {}", callback->debugId(), partition);
     bool callback_accepted = callback->receive(message);
     if (callback_accepted) {
-      ENVOY_LOG(info, "Callback {} accepted message, notifying and removing", callback->debugId());
+      ENVOY_LOG(info, "Erasing callback {}", callback->debugId());
       eraseCallback(callback); // XXX ???
-    } else {
-      ENVOY_LOG(info, "Callback {} rejected message", callback->debugId());
+      consumed = true;
     }
   } 
 
-  // We consume from all partitions, but there is noone interested in records present in this one.
-  // Keep it for now.
-  // ENVOY_LOG(info, "storing message (offset={}) for partition {}", message->offset(), partition);
-  // message can be null now b/c of callback :(
-  /*
-  {
+  // Noone is interested in our message, so we are going to store it in a local cache.
+  if (!consumed) {
     absl::MutexLock lock(&data_mutex_);
     auto& stored_messages = messages_waiting_for_interest_[partition];
-    stored_messages.push_back(message);
-    // XXX if size() > x block OR throw ???
-  }
-  */
+    stored_messages.push_back(message); // XXX limits?
 
+    // debug: count all present
+    int total = 0;
+    for (auto& e : messages_waiting_for_interest_) {
+      total += e.second.size();
+    }
+
+    ENVOY_LOG(info, "Stored message [{}] for partition {}, there are now {} messages stored", message->offset(), partition, total);
+  }
 }
 
 void Store::eraseCallback(RecordCbSharedPtr callback) {

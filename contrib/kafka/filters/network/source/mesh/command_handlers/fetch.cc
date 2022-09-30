@@ -69,7 +69,7 @@ bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
   {
     absl::MutexLock lock(&state_mutex_);
     if (!finished_) {
-      ENVOY_LOG(info, "Fetch request {} received message: {}/{}", debugId(), message->partition(), message->offset() );
+      ENVOY_LOG(info, "Fetch request {} accepted message: {}/{}", debugId(), message->partition(), message->offset());
 
       messages_.push_back(std::move(message));
 
@@ -80,6 +80,7 @@ bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
       return true;
     }
     else {
+      ENVOY_LOG(info, "Fetch request {} rejected message: {}/{}", debugId(), message->partition(), message->offset());
       return false;
     }
   }
