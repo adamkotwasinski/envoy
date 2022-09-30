@@ -65,7 +65,7 @@ void FetchRequestHolder::markFinishedByTimer() {
 }
 
 // Remember this method is called by a non-Envoy thread.
-bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
+Reply FetchRequestHolder::receive(RdKafkaMessagePtr message) {
   {
     absl::MutexLock lock(&state_mutex_);
     if (!finished_) {
@@ -77,11 +77,11 @@ bool FetchRequestHolder::receive(RdKafkaMessagePtr message) {
       markFinishedAndCleanup();
       //notifyFilterThruDispatcher();
 
-      return true;
+      return Reply::ACCEPTED_AND_FINISHED;
     }
     else {
       ENVOY_LOG(info, "Fetch request {} rejected message: {}/{}", debugId(), message->partition(), message->offset());
-      return false;
+      return Reply::REJECTED;
     }
   }
 }

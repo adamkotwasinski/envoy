@@ -206,36 +206,53 @@ void Store::registerInterest(RecordCbSharedPtr callback, const std::vector<int32
   oss << std::this_thread::get_id();
   ENVOY_LOG(info, "Registering callback {} for partitions {} in thread [{}]", callback->debugId(), stringify(partitions), oss.str());
 
-  bool notified_early_path = false;
+  bool fulfilled_at_startup = false;
 
-  // drain 'messages_waiting_for_interest_' here???
   {
     absl::MutexLock lock(&data_mutex_);
     for (const int32_t partition : partitions) {
+
       auto& stored_messages = messages_waiting_for_interest_[partition];
+
       if (0 != stored_messages.size()) {
         ENVOY_LOG(info, "Early notification for callback {}, as there are {} messages ready", callback->debugId(), stored_messages.size());
+      }
 
-        for (auto it = stored_messages.begin(); it != stored_messages.end();) {
-          bool accepted = callback->receive(*it);
-          if (accepted) {
-            notified_early_path = true;
+      for (auto it = stored_messages.begin(); it != stored_messages.end();) {
+        Reply callback_status = callback->receive(*it);
+        bool callback_finished;
+        switch (callback_status) {
+          case Reply::ACCEPTED_AND_FINISHED: {
+            callback_finished = true;
             it = stored_messages.erase(it);
-          } else {
             break;
           }
+          case Reply::ACCEPTED_AND_WANT_MORE: {
+            callback_finished = false;
+            it = stored_messages.erase(it);
+            break;
+          }
+          case Reply::REJECTED: {
+            callback_finished = true;
+            break;
+          }
+        } /* switch */
+        if (callback_finished) {
+          fulfilled_at_startup = true;
+          break; // Callback does not want any messages anymore.
         }
-      }
+      } /* for-messages */
+
     }
   }
 
-  if (!notified_early_path) {
+  if (!fulfilled_at_startup) {
     for (const int32_t partition : partitions) {
       auto& partition_callbacks = partition_to_callbacks_[partition];
       partition_callbacks.push_back(callback);
     }
   } else {
-    ENVOY_LOG(info, "No registration for callback {} due to early processing", callback->debugId());
+    ENVOY_LOG(info, "No registration for callback {} due to successful early processing", callback->debugId());
   }
 }
 
@@ -252,10 +269,10 @@ void Store::processNewDelivery(RdKafkaMessagePtr message) {
 
   // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
   if (!matching_callbacks.empty()) {
-    const auto callback = matching_callbacks[0]; // XXX this should be a for loop
+    const auto callback = matching_callbacks[0]; // XXX this should be a for loop across all callbacks
     ENVOY_LOG(info, "Notifying callback {} about delivery for partition {}", callback->debugId(), partition);
-    bool callback_accepted = callback->receive(message);
-    if (callback_accepted) {
+    Reply callback_status = callback->receive(message);
+    if (Reply::ACCEPTED_AND_FINISHED == callback_status) {
       ENVOY_LOG(info, "Erasing callback {}", callback->debugId());
       eraseCallback(callback); // XXX ???
       consumed = true;

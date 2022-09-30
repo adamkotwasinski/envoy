@@ -43,11 +43,12 @@ public:
   // bool isEligibleForSendingDownstream() const;
 
   // RecordCb
-  bool receive(RdKafkaMessagePtr message) override;
+  Reply receive(RdKafkaMessagePtr message) override;
 
-  // RecordCB
+  // RecordCb
   std::string debugId() const override;
 
+  //XXX
   int32_t id() const override;
 
 private:
