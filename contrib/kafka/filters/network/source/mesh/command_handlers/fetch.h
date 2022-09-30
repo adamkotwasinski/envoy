@@ -35,28 +35,35 @@ public:
   // then this method does nothing.
   void markFinishedByTimer();
 
+  // XXX
   // Whether the given fetch request should be sent downstream.
   // Typical cases are:
   // - it has enough records (meeting request's minimal requirements),
   // - enough time has passed.
-  bool isEligibleForSendingDownstream() const;
+  // bool isEligibleForSendingDownstream() const;
 
   // RecordCb
   bool receive(RdKafkaMessagePtr message) override;
 
 private:
-  // ???
-  bool timed_out_;
 
-  // Provides access to upstream-pointing consumers.
+  // Invoked internally when we want to mark this Fetch request as done.
+  // This means: we are no longer interested in future messages and need to unregister ourselves.
+  void markFinishedAndCleanup();
+
+// Provides access to upstream-pointing consumers.
   SharedConsumerManager& consumer_manager_;
   // Registers this fetch request's timeout just in case we get no data from upstream.
   FetchPurger& fetch_purger_;
   // Original request.
   const std::shared_ptr<Request<FetchRequest>> request_;
+
+  mutable absl::Mutex state_mutex_;
+  // Whether this request has finished processing and is ready for sending upstream.
+  bool finished_ ABSL_GUARDED_BY(state_mutex_);
   // The messages to send downstream.
-  mutable absl::Mutex messages_mutex_;
-  std::vector<RdKafkaMessagePtr> messages_ ABSL_GUARDED_BY(messages_mutex_);
+  std::vector<RdKafkaMessagePtr> messages_ ABSL_GUARDED_BY(state_mutex_);
+
   // Timeout timer.
   Event::TimerPtr timer_;
   // Translates librdkafka objects into bytes to be sent downstream.

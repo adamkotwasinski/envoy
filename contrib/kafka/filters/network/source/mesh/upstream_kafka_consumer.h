@@ -24,7 +24,7 @@ public:
   virtual ~RecordCb() = default;
 
   // Notify the callback that with a message.
-  // @return whether the calback is willing to accept more messages
+  // @return whether the calback could accept the message
   virtual bool receive(RdKafkaMessagePtr message) PURE;
 };
 
