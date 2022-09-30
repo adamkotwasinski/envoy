@@ -41,7 +41,7 @@ public:
    */
   void registerFetchCallback(RecordCbSharedPtr callback, FetchSpec fetches) override;
 
-  void unregisterFetchCallback(RecordCbSharedPtr callback) override;
+  //void unregisterFetchCallback(RecordCbSharedPtr callback) override;
 
 private:
   KafkaConsumer& getOrCreateConsumer(const std::string& topic);
