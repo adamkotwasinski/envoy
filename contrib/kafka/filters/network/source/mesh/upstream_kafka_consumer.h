@@ -16,7 +16,7 @@ namespace Kafka {
 namespace Mesh {
 
 // FIXME duplicate of _impl.h
-using RdKafkaMessagePtr = std::unique_ptr<RdKafka::Message>;
+using RdKafkaMessagePtr = std::shared_ptr<RdKafka::Message>;
 
 // Callback for objects that want to be notified that new Kafka record has been received.
 class RecordCb {

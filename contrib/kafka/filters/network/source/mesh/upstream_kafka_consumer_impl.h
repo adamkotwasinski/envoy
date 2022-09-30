@@ -49,7 +49,7 @@ using RawKafkaConfig = std::map<std::string, std::string>;
 
 using RdKafkaTopicPartitionRawPtr = RdKafka::TopicPartition*;
 
-using RdKafkaMessagePtr = std::unique_ptr<RdKafka::Message>;
+using RdKafkaMessagePtr = std::shared_ptr<RdKafka::Message>;
 
 class Store : private Logger::Loggable<Logger::Id::kafka> {
 public:
