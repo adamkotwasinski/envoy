@@ -46,7 +46,7 @@ public:
   bool receive(RdKafkaMessagePtr message) override;
 
   // RecordCB
-  int32_t debugId() const override;
+  std::string debugId() const override;
 
 private:
 

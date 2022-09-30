@@ -45,7 +45,7 @@ void SharedConsumerManagerImpl::unregisterFetchCallback(RecordCbSharedPtr callba
 
   std::ostringstream oss;
   oss << std::this_thread::get_id();
-  ENVOY_LOG(info, "Unregistering [{}] interest in thread {}", (void*)(callback.get()), oss.str());
+  ENVOY_LOG(info, "Unregistering {} interest in thread {}", callback->debugId(), oss.str());
 
   for (const auto& fetch : fetches) {
     const std::string& topic = fetch.first;

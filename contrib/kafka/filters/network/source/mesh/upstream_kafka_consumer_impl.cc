@@ -201,7 +201,7 @@ bool Store::hasInterest() const {
 void Store::registerInterest(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions) {
   std::ostringstream oss;
   oss << std::this_thread::get_id();
-  ENVOY_LOG(info, "Registering callback [{}] for partitions {} in thread [{}]", (void*)(callback.get()), stringify(partitions), oss.str());
+  ENVOY_LOG(info, "Registering callback {} for partitions {} in thread [{}]", callback->debugId(), stringify(partitions), oss.str());
 
   // drain 'messages_waiting_for_interest_' here???
   for (const int32_t partition : partitions) {
@@ -225,13 +225,13 @@ void Store::processNewDelivery(RdKafkaMessagePtr message) {
   if (!matching_callbacks.empty()) {
     // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
     const auto callback = matching_callbacks[0];
-    ENVOY_LOG(info, "Notifying callback [{}] about delivery for partition {}", (void*)(callback.get()), partition);
+    ENVOY_LOG(info, "Notifying callback {} about delivery for partition {}", callback->debugId(), partition);
     bool callback_accepted = callback->receive(std::move(message));
     if (callback_accepted) {
-      ENVOY_LOG(info, "Callback [{}] accepted, notifying and removing", (void*)(callback.get()));
+      ENVOY_LOG(info, "Callback {} accepted message, notifying and removing", callback->debugId());
       eraseCallback(callback); // XXX ???
     } else {
-      ENVOY_LOG(info, "Callback [{}] rejected", (void*)(callback.get()));
+      ENVOY_LOG(info, "Callback {} rejected message", callback->debugId());
     }
   } 
 
@@ -251,13 +251,20 @@ void Store::processNewDelivery(RdKafkaMessagePtr message) {
 }
 
 void Store::eraseCallback(RecordCbSharedPtr callback) {
-  int i = 0;
+  int removed = 0;
   for (auto& e : partition_to_callbacks_) {
     auto& partition_callbacks = e.second;
+    int old_size = partition_callbacks.size();
     partition_callbacks.erase(std::remove(partition_callbacks.begin(), partition_callbacks.end(), callback), partition_callbacks.end());
-    ++i;
+    int new_size = partition_callbacks.size();
+    removed += (old_size - new_size);
   }
-  //ENVOY_LOG(info, "Removed {} callback(s)", i);
+
+  int remaining = 0;
+  for (auto& e : partition_to_callbacks_) {
+    remaining += e.second.size();
+  }
+  ENVOY_LOG(info, "Removed {} callback(s), there are {} left", removed, remaining);
 }
 
 } // namespace Mesh
