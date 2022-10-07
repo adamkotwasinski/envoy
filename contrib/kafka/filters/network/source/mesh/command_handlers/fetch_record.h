@@ -5,6 +5,7 @@
 
 #include "source/common/common/logger.h"
 
+#include "contrib/kafka/filters/network/source/kafka_types.h"
 #include "contrib/kafka/filters/network/source/external/responses.h"
 
 // FIXME
@@ -23,6 +24,10 @@ class FetchResponsePayloadProcessor : private Logger::Loggable<Logger::Id::kafka
 public:
 
     std::vector<FetchableTopicResponse> transform(const std::vector<RdKafkaMessagePtr>& arg) const;
+
+private:
+
+    void append(Bytes& out, const RdKafkaMessagePtr& ptr) const;
 
 };
 
