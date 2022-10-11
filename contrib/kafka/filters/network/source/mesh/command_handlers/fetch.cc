@@ -31,6 +31,11 @@ void FetchRequestHolder::startProcessing() {
     for (const auto partition : partitions) {
       const int32_t partition_id = partition.partition_;
       fetches_requested[topic_name].push_back(partition_id);
+
+      // This makes sure that all requested KafkaPartitions are tracked,
+      // so then output generation is simpler.
+      absl::MutexLock lock(&state_mutex_);
+      messages_[{topic_name, partition_id}] = {};
     }
   }
 
@@ -126,7 +131,12 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
   std::vector<FetchableTopicResponse> responses;
   {
     absl::MutexLock lock(&state_mutex_);
-    ENVOY_LOG(info, "Response to Fetch request {} has {} topics, finished = {}", debugId(), messages_.size(), finished_);
+
+    int cnt = 0;
+    for (const auto& e : messages_) {
+      cnt += e.second.size();
+    }
+    ENVOY_LOG(info, "Response to Fetch request {} has {} records, finished = {}", debugId(), cnt, finished_);
     responses = processor_.transform(messages_);
   }
 
