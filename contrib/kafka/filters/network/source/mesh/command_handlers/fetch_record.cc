@@ -37,13 +37,19 @@ Bytes computeCrc(const void* data, const size_t len) {
 std::vector<FetchableTopicResponse> FetchResponsePayloadProcessor::transform(const std::map<KafkaPartition, std::vector<RdKafkaMessagePtr>>& arg) const {
 
     std::map<KafkaPartition, Bytes> partition_to_bytes;
-    for (const auto& e : arg) {
-        const KafkaPartition kp = e.first;
-        const std::vector<RdKafkaMessagePtr>& partition_records = e.second;
-        for (const auto& r : partition_records) {
-            ENVOY_LOG(info, "processing record {}-{} / {}", r->topic_name(), r->partition(), r->offset());
+
+    for (const auto& partition_and_records : arg) {
+        const KafkaPartition kp = partition_and_records.first;
+
+        // This is meaningful, as we can have a situation with no records
+        // that would not have had any records.
+        partition_to_bytes[kp] = {};
+
+        const std::vector<RdKafkaMessagePtr>& partition_records = partition_and_records.second;
+        for (const auto& record : partition_records) {
+            ENVOY_LOG(info, "processing record {}-{} / {}", record->topic_name(), record->partition(), record->offset());
             Bytes& partition_outbound_bytes = partition_to_bytes[kp];
-            append(partition_outbound_bytes, r);
+            append(partition_outbound_bytes, record);
         }
     }
 
@@ -74,78 +80,88 @@ std::vector<FetchableTopicResponse> FetchResponsePayloadProcessor::transform(con
     baseSequence: int32 / 45
     records: [Record]
     */
-    for (auto& e : partition_to_bytes) {
-        const Bytes& orig = e.second;
-        Bytes new_ones = {};
+    for (auto& partition_and_records : partition_to_bytes) {
+
+        const Bytes& serialized_records = partition_and_records.second;
+
+        Bytes out = {};
 
         int64_t base_offset = htobe64(0);
         unsigned char* base_offset_b = reinterpret_cast<unsigned char*>(&base_offset);
-        new_ones.insert(new_ones.end(), base_offset_b, base_offset_b + sizeof(base_offset));
+        out.insert(out.end(), base_offset_b, base_offset_b + sizeof(base_offset));
 
         // batch length placeholder
-        new_ones.insert(new_ones.end(), {0, 0, 0, 0});
+        out.insert(out.end(), {0, 0, 0, 0});
 
         // all other cool attributes
         std::vector zeros(45, 0);
-        new_ones.insert(new_ones.end(), zeros.begin(), zeros.end());
+        out.insert(out.end(), zeros.begin(), zeros.end());
 
-        const KafkaPartition kp = e.first;
+        const KafkaPartition& kp = partition_and_records.first;
+        const std::vector<RdKafkaMessagePtr>& records = arg.find(kp)->second;
 
         // last offset delta
-        int32_t last_offset_delta = htobe32(arg.find(kp)->second.back()->offset());
+        int32_t last_offset_delta;
+        // XXX this needs to be improved a little
+        if (records.size() > 0) {
+            last_offset_delta = htobe32(records.back()->offset());
+        } else {
+            last_offset_delta = htobe32(0);
+        }
         unsigned char* last_offset_delta_b = reinterpret_cast<unsigned char*>(&last_offset_delta);
         for (auto i = 0; i < sizeof(last_offset_delta); ++i) {
-            new_ones[8 + 4 + 11 + i] = last_offset_delta_b[i];
+            out[8 + 4 + 11 + i] = last_offset_delta_b[i];
         }
 
         // records (count)
-        int32_t record_count = htobe32(arg.find(kp)->second.size());
+        int32_t record_count = htobe32(records.size());
         unsigned char* record_count_b = reinterpret_cast<unsigned char*>(&record_count);
-        new_ones.insert(new_ones.end(), record_count_b, record_count_b + sizeof(record_count));
+        out.insert(out.end(), record_count_b, record_count_b + sizeof(record_count));
 
         ENVOY_LOG(info, "there are {} records for {}-{}, last offset is {}",
                         be32toh(record_count), kp.first, kp.second, be32toh(last_offset_delta));
 
         // records (data)
-        new_ones.insert(new_ones.end(), orig.begin(), orig.end());
+        out.insert(out.end(), serialized_records.begin(), serialized_records.end());
 
         // set batch len
-        int32_t batch_len = htobe32(new_ones.size() - (sizeof(base_offset) + sizeof(batch_len)));
+        int32_t batch_len = htobe32(out.size() - (sizeof(base_offset) + sizeof(batch_len)));
         unsigned char* batch_len_b = reinterpret_cast<unsigned char*>(&batch_len);
-        std::copy(batch_len_b, batch_len_b + sizeof(batch_len), new_ones.begin() + sizeof(base_offset));
+        std::copy(batch_len_b, batch_len_b + sizeof(batch_len), out.begin() + sizeof(base_offset));
 
         // set magic
         uint32_t magic_offset = sizeof(base_offset) + sizeof(batch_len) + sizeof(int32_t /* PL epoch */);
-        new_ones[magic_offset] = 2;
+        out[magic_offset] = 2;
 
         // set crc
         uint32_t crc_offset = magic_offset + 1;
-        Bytes crc = computeCrc(&(*(new_ones.begin() + crc_offset + 4)), new_ones.size() - (crc_offset + 4));
-        std::copy(crc.begin(), crc.end(), new_ones.begin() + crc_offset);
-        print(new_ones, "magic + CRC set");
+        Bytes crc = computeCrc(&(*(out.begin() + crc_offset + 4)), out.size() - (crc_offset + 4));
+        std::copy(crc.begin(), crc.end(), out.begin() + crc_offset);
+
+        // print(out, "magic + CRC set");
 
         // haha
-        e.second = new_ones;
+        partition_and_records.second = out;
     }
 
     std::map<std::string, std::vector<FetchResponseResponsePartitionData>> topic_to_frrpd;
-    for (const auto& e : partition_to_bytes) {
-        const std::string& topic_name = e.first.first;
-        const int32_t partition = e.first.second;
+    for (const auto& partition_and_records : partition_to_bytes) {
+        const std::string& topic_name = partition_and_records.first.first;
+        const int32_t partition = partition_and_records.first.second;
         std::vector<FetchResponseResponsePartitionData>& frrpds = topic_to_frrpd[topic_name];
 
         // We finally construct FRRPD...
         const int16_t error_code = 0;
         const int64_t high_watermark = 0;
-        const auto frrpd = FetchResponseResponsePartitionData{partition, error_code, high_watermark, absl::make_optional(e.second)};
+        const auto frrpd = FetchResponseResponsePartitionData{partition, error_code, high_watermark, absl::make_optional(partition_and_records.second)};
 
         frrpds.push_back(frrpd);
     }
 
     std::vector<FetchableTopicResponse> result;
-    for (const auto& e : topic_to_frrpd) {
-        const std::string& topic_name = e.first;
-        const auto ftr = FetchableTopicResponse{ topic_name, e.second };
+    for (const auto& partition_and_records : topic_to_frrpd) {
+        const std::string& topic_name = partition_and_records.first;
+        const auto ftr = FetchableTopicResponse{ topic_name, partition_and_records.second };
 
         result.push_back(ftr);
     }
@@ -241,7 +257,7 @@ void FetchResponsePayloadProcessor::append(Bytes& out, const RdKafkaMessagePtr& 
     // Value: byte[]
     written += writeVarint(0, b_out);
 
-    ENVOY_LOG(info, "len of record {}-{}/{} = {}", ptr->topic_name(), ptr->partition(), ptr->offset(), written);
+    // ENVOY_LOG(info, "len of record {}-{}/{} = {}", ptr->topic_name(), ptr->partition(), ptr->offset(), written);
 
     Buffer::OwnedImpl len_buf;
     writeVarint(written, len_buf);
@@ -250,7 +266,7 @@ void FetchResponsePayloadProcessor::append(Bytes& out, const RdKafkaMessagePtr& 
     void* rawi = b_out.linearize(b_out.length());
     unsigned char* raw = static_cast<unsigned char*>(rawi);
 
-    ENVOY_LOG(info, "final len of record {}-{}/{} = {}", ptr->topic_name(), ptr->partition(), ptr->offset(), b_out.length());
+    // ENVOY_LOG(info, "final len of record {}-{}/{} = {}", ptr->topic_name(), ptr->partition(), ptr->offset(), b_out.length());
     std::ostringstream oss;
     oss << "[";
     for (auto i = 0; i < b_out.length(); ++i) {
@@ -258,7 +274,7 @@ void FetchResponsePayloadProcessor::append(Bytes& out, const RdKafkaMessagePtr& 
         oss << v << ", ";
     }
     oss << "]";
-    ENVOY_LOG(info, "record = {}", oss.str());
+    // ENVOY_LOG(info, "record = {}", oss.str());
 
     out.insert(out.end(), raw, raw + b_out.length());
 }
