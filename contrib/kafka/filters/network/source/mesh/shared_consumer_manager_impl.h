@@ -32,11 +32,6 @@ public:
   ~SharedConsumerManagerImpl() override;
 
   /**
-   * Provides current position of consumer.
-   */
-  int64_t listOffsets(std::string topic, int32_t partition) override;
-
-  /**
    * Registers a callback that is interested in messages for particular partitions.
    */
   void registerFetchCallback(RecordCbSharedPtr callback, FetchSpec fetches) override;
