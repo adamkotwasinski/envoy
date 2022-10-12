@@ -18,12 +18,16 @@ namespace Mesh {
 // FIXME duplicate of _impl.h
 using RdKafkaMessagePtr = std::shared_ptr<RdKafka::Message>;
 
+// Topic name to topic partitions.
+using TopicToPartitionsMap = std::map<std::string, std::vector<int32_t>>;
+
 enum class Reply {
   REJECTED,
   ACCEPTED_AND_WANT_MORE,
   ACCEPTED_AND_FINISHED,
 };
 
+// XXX rename
 // Callback for objects that want to be notified that new Kafka record has been received.
 class RecordCb {
 public:
@@ -33,10 +37,24 @@ public:
   // @return whether the callback could accept the message
   virtual Reply receive(RdKafkaMessagePtr message) PURE;
 
+  virtual TopicToPartitionsMap interest() const PURE;
+
   virtual std::string debugId() const PURE;
 };
 
 using RecordCbSharedPtr = std::shared_ptr<RecordCb>;
+
+// ========================================================================================
+
+// XXX rename
+class StoreCb {
+public:
+  virtual ~StoreCb() = default;
+
+  virtual void receive(RdKafkaMessagePtr message) PURE;
+
+  virtual bool hasInterest(const std::string& topic) const PURE;
+};
 
 /**
  * Kafka consumer pointing to some upstream Kafka cluster.
@@ -44,12 +62,7 @@ using RecordCbSharedPtr = std::shared_ptr<RecordCb>;
  */
 class KafkaConsumer {
 public:
-
   virtual ~KafkaConsumer() = default;
-
-  // Attempts to fill records for a callback (from the buffer).
-  // If this is not possible, registers the callback for future deliveres.
-  virtual void getRecordsOrRegisterCallback(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions) PURE;
 };
 
 using KafkaConsumerPtr = std::unique_ptr<KafkaConsumer>;
