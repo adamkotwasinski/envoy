@@ -63,7 +63,7 @@ void RequestProcessor::process(const std::shared_ptr<Request<FetchRequest>> requ
 }
 
 void RequestProcessor::process(const std::shared_ptr<Request<ListOffsetsRequest>> request) const {
-  auto res = std::make_shared<ListOffsetsRequestHolder>(origin_, shared_consumer_manager_, request);
+  auto res = std::make_shared<ListOffsetsRequestHolder>(origin_, request);
   origin_.onRequest(res);
 }
 
