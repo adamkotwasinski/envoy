@@ -15,7 +15,8 @@ namespace Mesh {
 using FetchSpec = std::map<std::string, std::vector<int32_t>>;
 
 /**
- * ???
+ * Manages (raw) Kafka consumers pointing to upstream Kafka clusters.
+ * It is expected to have only one instance of this object in the runtime.
  */
 class SharedConsumerManager {
 public:
@@ -23,7 +24,7 @@ public:
 
   virtual void registerFetchCallback(RecordCbSharedPtr callback, FetchSpec fetches) PURE; // const& ?
 
-  //virtual void unregisterFetchCallback(RecordCbSharedPtr callback) PURE; // const& ?
+  virtual void unregisterFetchCallback(RecordCbSharedPtr callback) PURE; // const& ?
 };
 
 using SharedConsumerManagerSharedPtr = std::shared_ptr<SharedConsumerManager>;
