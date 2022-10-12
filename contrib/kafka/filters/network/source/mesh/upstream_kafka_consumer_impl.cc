@@ -18,59 +18,24 @@ std::string stringify(const std::vector<int32_t> arg) {
   return oss.str();
 }
 
-class LibRdKafkaUtilsImpl2 : public LibRdKafkaUtils2 {
+class LibRdKafkaUtils2Impl : public LibRdKafkaUtils2 {
 
-  // LibRdKafkaUtils
+  // LibRdKafkaUtils2
   RdKafka::Conf::ConfResult setConfProperty(RdKafka::Conf& conf, const std::string& name,
                                             const std::string& value,
                                             std::string& errstr) const override {
     return conf.set(name, value, errstr);
   }
 
-  // LibRdKafkaUtils
-  RdKafka::Conf::ConfResult setConfDeliveryCallback(RdKafka::Conf& conf,
-                                                    RdKafka::DeliveryReportCb* dr_cb,
-                                                    std::string& errstr) const override {
-    return conf.set("dr_cb", dr_cb, errstr);
-  }
-
-  // LibRdKafkaUtils
-  std::unique_ptr<RdKafka::Producer> createProducer(RdKafka::Conf* conf,
-                                                    std::string& errstr) const override {
-    return std::unique_ptr<RdKafka::Producer>(RdKafka::Producer::create(conf, errstr));
-  }
-
-  // LibRdKafkaUtils
+  // LibRdKafkaUtils2
   std::unique_ptr<RdKafka::KafkaConsumer> createConsumer(RdKafka::Conf* conf,
                                                          std::string& errstr) const override {
     return std::unique_ptr<RdKafka::KafkaConsumer>(RdKafka::KafkaConsumer::create(conf, errstr));
   }
 
-  // LibRdKafkaUtils
-  RdKafka::Headers* convertHeaders(
-      const std::vector<std::pair<absl::string_view, absl::string_view>>& headers) const override {
-    RdKafka::Headers* result = RdKafka::Headers::create();
-    for (const auto& header : headers) {
-      const RdKafka::Headers::Header librdkafka_header = {
-          std::string(header.first), header.second.data(), header.second.length()};
-      const auto ec = result->add(librdkafka_header);
-      // This should never happen ('add' in 1.7.0 does not return any other error codes).
-      if (RdKafka::ERR_NO_ERROR != ec) {
-        delete result;
-        return nullptr;
-      }
-    }
-    return result;
-  }
-
-  // LibRdKafkaUtils
-  void deleteHeaders(RdKafka::Headers* librdkafka_headers) const override {
-    delete librdkafka_headers;
-  }
-
 public:
   static const LibRdKafkaUtils2& getDefaultInstance() {
-    CONSTRUCT_ON_FIRST_USE(LibRdKafkaUtilsImpl2);
+    CONSTRUCT_ON_FIRST_USE(LibRdKafkaUtils2Impl);
   }
 };
 
@@ -78,7 +43,7 @@ RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory,
                                      const std::string& topic, int32_t partition_count,
                                      const RawKafkaConfig& configuration)
     : RichKafkaConsumer(thread_factory, topic, partition_count, configuration,
-                        LibRdKafkaUtilsImpl2::getDefaultInstance()){};
+                        LibRdKafkaUtils2Impl::getDefaultInstance()){};
 
 RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory,
                                      const std::string& topic, int32_t partition_count,
@@ -107,13 +72,13 @@ RichKafkaConsumer::RichKafkaConsumer(Thread::ThreadFactory& thread_factory,
     throw EnvoyException(absl::StrCat("Could not create consumer:", errstr));
   }
 
-  // XXX (AK) abstract out.
+  
   for (auto pt = 0; pt < partition_count; ++pt) {
     RdKafkaTopicPartitionRawPtr topic_partition =
         RdKafka::TopicPartition::create(topic, pt, 0); // XXX (AK) initial offset???
     assignment_.push_back(topic_partition);
   }
-
+  // XXX (AK) abstract out.
   consumer_->assign(assignment_);
 
   ENVOY_LOG(info, "Starting poller for topic [{}]", topic_);
@@ -135,21 +100,24 @@ RichKafkaConsumer::~RichKafkaConsumer() {
   ENVOY_LOG(info, "Kafka consumer [{}] closed succesfully", topic_);
 }
 
-void RichKafkaConsumer::registerInterest(RecordCbSharedPtr callback,
-                                         const std::vector<int32_t>& partitions) {
-  store_.registerInterest(callback, partitions);
+void RichKafkaConsumer::getRecordsOrRegisterCallback(RecordCbSharedPtr callback,
+                                                     const std::vector<int32_t>& partitions) {
+
+  store_.getRecordsOrRegisterCallback(callback, partitions);
 }
 
 void RichKafkaConsumer::pollContinuously() {
   while (poller_thread_active_) {
-    if (store_.hasInterest()) { /* this should change 'what partitions are we interested in' */
-      std::vector<RdKafkaMessagePtr> batch = receiveMessageBatch();
-      if (0 != batch.size()) {
-        store_.processNewDeliveries(batch);
+    if (store_.hasCallbacks()) { // There should be a partition check here.
+      std::vector<RdKafkaMessagePtr> kafka_messages = receiveMessageBatch();
+      if (0 != kafka_messages.size()) {
+        for (auto& kafka_message : kafka_messages) {
+          store_.processNewDelivery(kafka_message);
+        }
       }
     } else {
       // There's no interest in any messages, just sleep for now.
-      std::this_thread::sleep_for(std::chrono::seconds(1)); // XXX break on interest
+      std::this_thread::sleep_for(std::chrono::seconds(1)); // XXX this should not be a sleep, we should sleep on condition "there are callbacks"
     }
   }
   ENVOY_LOG(info, "Poller thread for consumer [{}] finished", topic_);
@@ -192,7 +160,9 @@ std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
   }
 }
 
-bool Store::hasInterest() const {
+// === STORE =================================================================================================
+
+bool Store::hasCallbacks() const {
   for (const auto& e : partition_to_callbacks_) {
     if (!e.second.empty()) {
       return true;
@@ -201,10 +171,8 @@ bool Store::hasInterest() const {
   return false;
 }
 
-void Store::registerInterest(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions) {
-  std::ostringstream oss;
-  oss << std::this_thread::get_id();
-  ENVOY_LOG(info, "Registering callback {} for partitions {} in thread [{}]", callback->debugId(), stringify(partitions), oss.str());
+void Store::getRecordsOrRegisterCallback(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions) {
+  ENVOY_LOG(info, "Registering callback {} for partitions {}", callback->debugId(), stringify(partitions));
 
   bool fulfilled_at_startup = false;
 
@@ -247,18 +215,15 @@ void Store::registerInterest(RecordCbSharedPtr callback, const std::vector<int32
   }
 
   if (!fulfilled_at_startup) {
+    // Usual path: the request was not fulfilled at receive time (there were no buffered messages).
+    // So we just register the callback.
+    absl::MutexLock lock(&callbacks_mutex_);
     for (const int32_t partition : partitions) {
       auto& partition_callbacks = partition_to_callbacks_[partition];
       partition_callbacks.push_back(callback);
     }
   } else {
     ENVOY_LOG(info, "No registration for callback {} due to successful early processing", callback->debugId());
-  }
-}
-
-void Store::processNewDeliveries(std::vector<RdKafkaMessagePtr> messages) {
-  for (auto& message : messages) {
-    processNewDelivery(message);
   }
 }
 
@@ -269,12 +234,14 @@ void Store::processNewDelivery(RdKafkaMessagePtr message) {
 
   // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
   if (!matching_callbacks.empty()) {
-    const auto callback = matching_callbacks[0]; // XXX this should be a for loop across all callbacks
+    const auto callback = matching_callbacks[0]; // FIXME this should be a for loop across all callbacks, otherwise we are not multithreaded
     Reply callback_status = callback->receive(message);
     switch (callback_status) {
       case Reply::ACCEPTED_AND_FINISHED: {
         consumed = true;
-        eraseCallback(callback); // XXX ???
+        // A callback is finally satisfied, it will never want more messages.
+        // XXX do we need to do this here? or maybe CB should unregister itself?
+        removeCallback(callback);
         break;
       }
       case Reply::ACCEPTED_AND_WANT_MORE: {
@@ -291,7 +258,7 @@ void Store::processNewDelivery(RdKafkaMessagePtr message) {
   if (!consumed) {
     absl::MutexLock lock(&data_mutex_);
     auto& stored_messages = messages_waiting_for_interest_[partition];
-    stored_messages.push_back(message); // XXX limits?
+    stored_messages.push_back(message); // XXX there should be buffer limits here
 
     // debug: count all present
     int total = 0;
@@ -303,7 +270,7 @@ void Store::processNewDelivery(RdKafkaMessagePtr message) {
   }
 }
 
-void Store::eraseCallback(RecordCbSharedPtr callback) {
+void Store::removeCallback(RecordCbSharedPtr callback) {
   int removed = 0;
   for (auto& e : partition_to_callbacks_) {
     auto& partition_callbacks = e.second;
