@@ -26,8 +26,7 @@ namespace Mesh {
 class SharedConsumerManagerImpl : public SharedConsumerManager,
                                   private Logger::Loggable<Logger::Id::kafka> {
 public:
-  SharedConsumerManagerImpl(const UpstreamKafkaConfiguration& configuration,
-                            Thread::ThreadFactory& thread_factory);
+  SharedConsumerManagerImpl(const UpstreamKafkaConfiguration& configuration, Thread::ThreadFactory& thread_factory);
 
   ~SharedConsumerManagerImpl() override;
 
@@ -36,7 +35,7 @@ public:
    */
   void registerFetchCallback(RecordCbSharedPtr callback, FetchSpec fetches) override;
 
-  //void unregisterFetchCallback(RecordCbSharedPtr callback) override;
+  void unregisterFetchCallback(RecordCbSharedPtr callback) override;
 
 private:
   KafkaConsumer& getOrCreateConsumer(const std::string& topic);
