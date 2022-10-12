@@ -27,22 +27,9 @@ public:
                                                     const std::string& value,
                                                     std::string& errstr) const PURE;
 
-  virtual RdKafka::Conf::ConfResult setConfDeliveryCallback(RdKafka::Conf& conf,
-                                                            RdKafka::DeliveryReportCb* dr_cb,
-                                                            std::string& errstr) const PURE;
-
-  virtual std::unique_ptr<RdKafka::Producer> createProducer(RdKafka::Conf* conf,
-                                                            std::string& errstr) const PURE;
-
   virtual std::unique_ptr<RdKafka::KafkaConsumer> createConsumer(RdKafka::Conf*,
                                                                  std::string& errstr) const PURE;
 
-  // Returned type is a raw pointer, as librdkafka does the deletion on successful produce call.
-  virtual RdKafka::Headers* convertHeaders(
-      const std::vector<std::pair<absl::string_view, absl::string_view>>& headers) const PURE;
-
-  // In case of produce failures, we need to dispose of headers manually.
-  virtual void deleteHeaders(RdKafka::Headers* librdkafka_headers) const PURE;
 };
 
 using RawKafkaConfig = std::map<std::string, std::string>;
@@ -51,30 +38,35 @@ using RdKafkaTopicPartitionRawPtr = RdKafka::TopicPartition*;
 
 using RdKafkaMessagePtr = std::shared_ptr<RdKafka::Message>;
 
+/**
+ * Meaningful state for upstream-pointing consumer.
+ * Keeps messages received so far that nobody was interested in.
+ * Keeps callbacks that are interested in messages.
+ */
 class Store : private Logger::Loggable<Logger::Id::kafka> {
 public:
-  bool hasInterest() const;
 
-  void registerInterest(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions);
+  bool hasCallbacks() const;
 
-  void processNewDeliveries(std::vector<RdKafkaMessagePtr> messages);
+  void getRecordsOrRegisterCallback(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions);
 
-private:
+  void removeCallback(RecordCbSharedPtr callback);
+
   void processNewDelivery(RdKafkaMessagePtr message);
 
-  void eraseCallback(RecordCbSharedPtr callback);
-
-  mutable absl::Mutex callbacks_mutex_;
-  std::map<int32_t, std::vector<RecordCbSharedPtr>> partition_to_callbacks_ ABSL_GUARDED_BY(callbacks_mutex_);
+private:
 
   /**
    * Invariant: for every i, the following holds:
    * !(partition_to_callbacks_[i].size() >= 0 && messages_waiting_for_interest_[i].size() >= 0)
    */
 
+  mutable absl::Mutex callbacks_mutex_;
+  std::map<int32_t, std::vector<RecordCbSharedPtr>> partition_to_callbacks_ ABSL_GUARDED_BY(callbacks_mutex_);
+
   mutable absl::Mutex data_mutex_;
   std::map<int32_t, std::vector<RdKafkaMessagePtr>> messages_waiting_for_interest_ ABSL_GUARDED_BY(data_mutex_);
-  std::vector<int32_t> paused_partitions_ ABSL_GUARDED_BY(data_mutex_);
+  // XXX paused_partitions_ field
 };
 
 class RichKafkaConsumer : public KafkaConsumer, private Logger::Loggable<Logger::Id::kafka> {
@@ -89,14 +81,12 @@ public:
                     const LibRdKafkaUtils2& utils);
 
   // More complex than usual - closes the real Kafka consumer.
-  // ???
   ~RichKafkaConsumer() override;
 
-  // ???
-  void registerInterest(RecordCbSharedPtr callback,
-                        const std::vector<int32_t>& partitions) override;
+  // KafkaConsumer
+  void getRecordsOrRegisterCallback(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions) override;
 
-  // ???
+  // XXX private?
   void pollContinuously();
 
 private:
