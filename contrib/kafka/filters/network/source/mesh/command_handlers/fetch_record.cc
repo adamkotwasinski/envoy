@@ -101,13 +101,7 @@ std::vector<FetchableTopicResponse> FetchResponsePayloadProcessor::transform(con
         const std::vector<RdKafkaMessagePtr>& records = arg.find(kp)->second;
 
         // last offset delta
-        int32_t last_offset_delta;
-        // XXX this needs to be improved a little
-        if (records.size() > 0) {
-            last_offset_delta = htobe32(records.back()->offset());
-        } else {
-            last_offset_delta = htobe32(0);
-        }
+        int32_t last_offset_delta = htobe32(-1); /* We always claim that we are at the beginning of partition. */
         unsigned char* last_offset_delta_b = reinterpret_cast<unsigned char*>(&last_offset_delta);
         for (auto i = 0; i < sizeof(last_offset_delta); ++i) {
             out[8 + 4 + 11 + i] = last_offset_delta_b[i];
