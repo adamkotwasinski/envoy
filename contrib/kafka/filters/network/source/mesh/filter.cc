@@ -14,6 +14,8 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
+static std::atomic<int> id_counter;
+
 KafkaMeshFilter::KafkaMeshFilter(const UpstreamKafkaConfiguration& configuration,
                                  UpstreamKafkaFacade& upstream_kafka_facade,
                                  SharedConsumerManager& shared_consumer_manager,
@@ -23,9 +25,21 @@ KafkaMeshFilter::KafkaMeshFilter(const UpstreamKafkaConfiguration& configuration
                                               shared_consumer_manager, fetch_purger)}))} {}
 
 KafkaMeshFilter::KafkaMeshFilter(RequestDecoderSharedPtr request_decoder)
-    : request_decoder_{request_decoder} {}
+    : filter_id_{id_counter++}, request_decoder_{request_decoder} {
 
-KafkaMeshFilter::~KafkaMeshFilter() { abandonAllInFlightRequests(); }
+  ENVOY_LOG(info, "KafkaMeshFilter {} CTOR", debugId());
+}
+
+KafkaMeshFilter::~KafkaMeshFilter() {
+  ENVOY_LOG(info, "KafkaMeshFilter {} DTOR", debugId());
+  abandonAllInFlightRequests();
+}
+
+std::string KafkaMeshFilter::debugId() const {
+  std::ostringstream oss;
+  oss << filter_id_;
+  return oss.str();
+}
 
 Network::FilterStatus KafkaMeshFilter::onNewConnection() { return Network::FilterStatus::Continue; }
 
@@ -93,8 +107,13 @@ void KafkaMeshFilter::onRequestReadyForAnswer() {
   }
 }
 
+Event::Dispatcher& KafkaMeshFilter::dispatcher() {
+  return read_filter_callbacks_->connection().dispatcher();
+}
+
 void KafkaMeshFilter::abandonAllInFlightRequests() {
   for (const auto& request : requests_in_flight_) {
+    ENVOY_LOG(info, "Invalidating request {}", request->debugId());
     request->abandon();
   }
   requests_in_flight_.erase(requests_in_flight_.begin(), requests_in_flight_.end());
