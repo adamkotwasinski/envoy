@@ -47,7 +47,7 @@ std::vector<FetchableTopicResponse> FetchResponsePayloadProcessor::transform(con
 
         const std::vector<RdKafkaMessagePtr>& partition_records = partition_and_records.second;
         for (const auto& record : partition_records) {
-            ENVOY_LOG(info, "processing record {}-{} / {}", record->topic_name(), record->partition(), record->offset());
+            // ENVOY_LOG(info, "processing record {}-{} / {}", record->topic_name(), record->partition(), record->offset());
             Bytes& partition_outbound_bytes = partition_to_bytes[kp];
             append(partition_outbound_bytes, record);
         }

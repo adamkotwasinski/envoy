@@ -8,6 +8,7 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
+<<<<<<< HEAD
 RichKafkaConsumer::RichKafkaConsumer(InboundRecordProcessor& record_processor,
                                      Thread::ThreadFactory& thread_factory,
                                      const std::string& topic, int32_t partition_count,
@@ -16,11 +17,25 @@ RichKafkaConsumer::RichKafkaConsumer(InboundRecordProcessor& record_processor,
                         LibRdKafkaUtilsImpl::getDefaultInstance()){};
 
 RichKafkaConsumer::RichKafkaConsumer(InboundRecordProcessor& record_processor,
+=======
+RichKafkaConsumer::RichKafkaConsumer(StoreCb& store_cb,
+                                     Thread::ThreadFactory& thread_factory,
+                                     const std::string& topic, int32_t partition_count,
+                                     const RawKafkaConfig& configuration)
+    : RichKafkaConsumer(store_cb, thread_factory, topic, partition_count, configuration,
+                        LibRdKafkaUtilsImpl::getDefaultInstance()){};
+
+RichKafkaConsumer::RichKafkaConsumer(StoreCb& store_cb,
+>>>>>>> 0b7aeca135 (kafka: move callback/undelivered message tracking to SCM)
                                      Thread::ThreadFactory& thread_factory,
                                      const std::string& topic, int32_t partition_count,
                                      const RawKafkaConfig& configuration,
                                      const LibRdKafkaUtils& utils)
+<<<<<<< HEAD
     : record_processor_{record_processor}, topic_{topic} {
+=======
+    : store_cb_{store_cb}, topic_{topic} {
+>>>>>>> 0b7aeca135 (kafka: move callback/undelivered message tracking to SCM)
 
   // Create consumer configuration object.
   std::unique_ptr<RdKafka::Conf> conf =
@@ -37,13 +52,29 @@ RichKafkaConsumer::RichKafkaConsumer(InboundRecordProcessor& record_processor,
     }
   }
 
+<<<<<<< HEAD
   // We create the consumer.
+=======
+  // XXX
+  if (utils.setConfProperty(*conf, "queued.max.messages.kbytes", "10", errstr) != RdKafka::Conf::CONF_OK) {
+    throw EnvoyException(errstr);
+  }
+  if (utils.setConfProperty(*conf, "fetch.message.max.bytes", "1000", errstr) != RdKafka::Conf::CONF_OK) {
+    throw EnvoyException(errstr);
+  }
+
+  // Finally, we create the producer.
+>>>>>>> 0b7aeca135 (kafka: move callback/undelivered message tracking to SCM)
   consumer_ = utils.createConsumer(conf.get(), errstr);
   if (!consumer_) {
     throw EnvoyException(absl::StrCat("Could not create consumer:", errstr));
   }
+<<<<<<< HEAD
 
   // We assign all topic partitions to the consumer.
+=======
+  
+>>>>>>> 0b7aeca135 (kafka: move callback/undelivered message tracking to SCM)
   for (auto pt = 0; pt < partition_count; ++pt) {
     // We consume records from the beginning of each partition.
     const int64_t initial_offset = 0;
@@ -74,6 +105,7 @@ RichKafkaConsumer::~RichKafkaConsumer() {
   ENVOY_LOG(debug, "Kafka consumer [{}] closed succesfully", topic_);
 }
 
+<<<<<<< HEAD
 // How long a thread should wait for interest before checking if it's cancelled.
 constexpr int32_t INTEREST_TIMEOUT_MS = 1000;
 
@@ -100,11 +132,26 @@ void RichKafkaConsumer::pollContinuously() {
     std::vector<InboundRecordSharedPtr> records = receiveRecordBatch();
     for (auto& record : records) {
       record_processor_.receive(record);
+=======
+void RichKafkaConsumer::pollContinuously() {
+  while (poller_thread_active_) {
+    if (store_cb_.hasInterest(topic_)) { // There should be a partition check here.
+      std::vector<RdKafkaMessagePtr> kafka_messages = receiveMessageBatch();
+      if (0 != kafka_messages.size()) {
+        for (auto& kafka_message : kafka_messages) {
+          store_cb_.receive(kafka_message);
+        }
+      }
+    } else {
+      // There's no interest in any messages, just sleep for now.
+      std::this_thread::sleep_for(std::chrono::seconds(1)); // XXX this should not be a sleep, we should sleep on condition "there are callbacks"
+>>>>>>> 0b7aeca135 (kafka: move callback/undelivered message tracking to SCM)
     }
   }
   ENVOY_LOG(debug, "Poller thread for consumer [{}] finished", topic_);
 }
 
+<<<<<<< HEAD
 // Helper method, gets rid of librdkafka.
 static InboundRecordSharedPtr transform(std::unique_ptr<RdKafka::Message> arg) {
   auto topic = arg->topic_name();
@@ -112,16 +159,25 @@ static InboundRecordSharedPtr transform(std::unique_ptr<RdKafka::Message> arg) {
   auto offset = arg->offset();
   return std::make_shared<InboundRecord>(topic, partition, offset);
 }
+=======
+const static int32_t BUFFER_DRAIN_VOLUME = 4;
+>>>>>>> 0b7aeca135 (kafka: move callback/undelivered message tracking to SCM)
 
 // How many records should be drained out of consumer in one go.
 constexpr int32_t BUFFER_DRAIN_VOLUME = 4;
 
 std::vector<InboundRecordSharedPtr> RichKafkaConsumer::receiveRecordBatch() {
   // This message kicks off librdkafka consumer's Fetch requests and delivers a message.
+<<<<<<< HEAD
   auto message = std::unique_ptr<RdKafka::Message>(consumer_->consume(POLL_TIMEOUT_MS));
+=======
+  ENVOY_LOG(info, "fetch! {}", topic_);
+  RdKafkaMessagePtr message = std::shared_ptr<RdKafka::Message>(consumer_->consume(1000));
+>>>>>>> 0b7aeca135 (kafka: move callback/undelivered message tracking to SCM)
   switch (message->err()) {
   case RdKafka::ERR_NO_ERROR: {
 
+<<<<<<< HEAD
     // We got a message.
     std::vector<InboundRecordSharedPtr> result;
 
@@ -160,6 +216,37 @@ std::vector<InboundRecordSharedPtr> RichKafkaConsumer::receiveRecordBatch() {
   } // switch
 }
 
+=======
+      // We got a message, there could be something left in the buffer, so we try to drain it by
+      // consuming without waiting. See: https://github.com/edenhill/librdkafka/discussions/3897
+      while (result.size() < BUFFER_DRAIN_VOLUME) {
+        int i = 0;
+        RdKafkaMessagePtr buffered_message = std::unique_ptr<RdKafka::Message>(consumer_->consume(0));
+        if (RdKafka::ERR_NO_ERROR == buffered_message->err()) {
+          // There was a message in the buffer.
+          ENVOY_LOG(info, "Received buffered message: {}-{}, offset={}", buffered_message->topic_name(), buffered_message->partition(), buffered_message->offset());
+          result.push_back(buffered_message);
+          i++;
+        } else {
+          ENVOY_LOG(info, "buffer drained! {}", i);
+          // Buffer is empty / consumer is failing - there is nothing more to consume.
+          break;
+        }
+      }
+      return result;
+    }
+    case RdKafka::ERR__TIMED_OUT: {
+      ENVOY_LOG(info, "Timed out in [{}]", topic_);
+      return {};
+    }
+    default: {
+      ENVOY_LOG(info, "Received other error: {} / {}", message->err(), RdKafka::err2str(message->err()));
+      return {};
+    }
+  }
+}
+
+>>>>>>> 0b7aeca135 (kafka: move callback/undelivered message tracking to SCM)
 } // namespace Mesh
 } // namespace Kafka
 } // namespace NetworkFilters
