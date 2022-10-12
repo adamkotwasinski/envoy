@@ -112,8 +112,7 @@ std::vector<FetchableTopicResponse> FetchResponsePayloadProcessor::transform(con
         unsigned char* record_count_b = reinterpret_cast<unsigned char*>(&record_count);
         out.insert(out.end(), record_count_b, record_count_b + sizeof(record_count));
 
-        ENVOY_LOG(info, "there are {} records for {}-{}, last offset is {}",
-                        be32toh(record_count), kp.first, kp.second, be32toh(last_offset_delta));
+        // ENVOY_LOG(info, "there are {} records for {}-{}, last offset is {}", be32toh(record_count), kp.first, kp.second, be32toh(last_offset_delta));
 
         // records (data)
         out.insert(out.end(), serialized_records.begin(), serialized_records.end());

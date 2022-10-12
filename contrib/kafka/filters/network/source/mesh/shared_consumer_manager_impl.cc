@@ -18,8 +18,11 @@ SharedConsumerManagerImpl::SharedConsumerManagerImpl(
   ENVOY_LOG(info, "SCM ctor");
 }
 
-SharedConsumerManagerImpl::~SharedConsumerManagerImpl() { 
-  ENVOY_LOG(info, "SCM dtor");
+SharedConsumerManagerImpl::~SharedConsumerManagerImpl() {
+  // XXX
+  absl::MutexLock lock(&consumers_mutex_);
+  ENVOY_LOG(info, "SCM dtor {}", topic_to_consumer_.size());
+  topic_to_consumer_.erase(topic_to_consumer_.begin(), topic_to_consumer_.end());
 }
 
 void SharedConsumerManagerImpl::registerFetchCallback(RecordCbSharedPtr callback, FetchSpec fetches) {
@@ -29,28 +32,14 @@ void SharedConsumerManagerImpl::registerFetchCallback(RecordCbSharedPtr callback
     const std::string& topic = fetch.first;
     KafkaConsumer& consumer = getOrCreateConsumer(topic);
     const std::vector<int32_t>& partitions = fetch.second;
-    consumer.registerInterest(callback, partitions);
+    consumer.getRecordsOrRegisterCallback(callback, partitions);
   }
 }
 
-/*
 void SharedConsumerManagerImpl::unregisterFetchCallback(RecordCbSharedPtr callback) {
-  // For every fetch topic, figure out the upstream cluster,
-  // create consumer if needed, and make it aware of interest.
-
-  std::ostringstream oss;
-  oss << std::this_thread::get_id();
-  ENVOY_LOG(info, "Unregistering {} interest in thread {}", callback->debugId(), oss.str());
-
-  for (const auto& fetch : fetches) {
-    const std::string& topic = fetch.first;
-    KafkaConsumer& consumer = getOrCreateConsumer(topic);
-    const std::vector<int32_t>& partitions = fetch.second;
-    consumer.unregisterFetchCallback(callback, partitions);
-  }
-
+  ENVOY_LOG(info, "Unregistering interest [{}]", callback->debugId());
+  // consumer.unregisterFetchCallback(callback);
 }
-*/
 
 KafkaConsumer& SharedConsumerManagerImpl::getOrCreateConsumer(const std::string& topic) {
   absl::MutexLock lock(&consumers_mutex_);

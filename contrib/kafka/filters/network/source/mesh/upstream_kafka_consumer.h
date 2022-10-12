@@ -38,12 +38,18 @@ public:
 
 using RecordCbSharedPtr = std::shared_ptr<RecordCb>;
 
+/**
+ * Kafka consumer pointing to some upstream Kafka cluster.
+ * Provides records to callbacks (immediately or after some delay).
+ */
 class KafkaConsumer {
 public:
+
   virtual ~KafkaConsumer() = default;
 
-  virtual void registerInterest(RecordCbSharedPtr callback,
-                                const std::vector<int32_t>& partitions) PURE;
+  // Attempts to fill records for a callback (from the buffer).
+  // If this is not possible, registers the callback for future deliveres.
+  virtual void getRecordsOrRegisterCallback(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions) PURE;
 };
 
 using KafkaConsumerPtr = std::unique_ptr<KafkaConsumer>;
