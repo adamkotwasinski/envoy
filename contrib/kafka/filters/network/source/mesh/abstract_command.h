@@ -66,6 +66,9 @@ public:
   // What means that we always need to check if first answer is ready, even if the latter are
   // already finished.
   virtual void onRequestReadyForAnswer() PURE;
+
+  // ???
+  virtual void onRequestReadyForAnswerThruDispatcher() PURE;
 };
 
 /**
