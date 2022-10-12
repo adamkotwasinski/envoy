@@ -23,7 +23,7 @@ class RequestProcessor : public RequestCallback, private Logger::Loggable<Logger
 public:
   RequestProcessor(AbstractRequestListener& origin, const UpstreamKafkaConfiguration& configuration,
                    UpstreamKafkaFacade& upstream_kafka_facade,
-                   SharedConsumerManager& shared_consumer_manager, FetchPurger& fetch_purger);
+                   RecordCallbackProcessor& shared_consumer_manager, FetchPurger& fetch_purger);
 
   // RequestCallback
   void onMessage(AbstractRequestSharedPtr arg) override;
@@ -39,7 +39,7 @@ private:
   AbstractRequestListener& origin_;
   const UpstreamKafkaConfiguration& configuration_;
   UpstreamKafkaFacade& upstream_kafka_facade_;
-  SharedConsumerManager& shared_consumer_manager_;
+  RecordCallbackProcessor& shared_consumer_manager_;
   FetchPurger& fetch_purger_;
 };
 

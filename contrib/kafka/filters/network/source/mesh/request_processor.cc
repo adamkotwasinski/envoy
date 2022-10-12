@@ -17,7 +17,7 @@ namespace Mesh {
 RequestProcessor::RequestProcessor(AbstractRequestListener& origin,
                                    const UpstreamKafkaConfiguration& configuration,
                                    UpstreamKafkaFacade& upstream_kafka_facade,
-                                   SharedConsumerManager& shared_consumer_manager,
+                                   RecordCallbackProcessor& shared_consumer_manager,
                                    FetchPurger& fetch_purger)
     : origin_{origin}, configuration_{configuration}, upstream_kafka_facade_{upstream_kafka_facade},
       shared_consumer_manager_{shared_consumer_manager}, fetch_purger_{fetch_purger} {}

@@ -57,7 +57,7 @@ public:
   // Main constructor.
   KafkaMeshFilter(const UpstreamKafkaConfiguration& configuration,
                   UpstreamKafkaFacade& upstream_kafka_facade,
-                  SharedConsumerManager& shared_consumer_manager, FetchPurger& fetch_purger);
+                  RecordCallbackProcessor& shared_consumer_manager, FetchPurger& fetch_purger);
 
   // Visible for testing.
   KafkaMeshFilter(RequestDecoderSharedPtr request_decoder);
@@ -78,6 +78,9 @@ public:
   // AbstractRequestListener
   void onRequest(InFlightRequestSharedPtr request) override;
   void onRequestReadyForAnswer() override;
+  Event::Dispatcher& dispatcher() override;
+
+  std::string debugId() const override;
 
   std::list<InFlightRequestSharedPtr>& getRequestsInFlightForTest();
 
@@ -87,6 +90,8 @@ private:
   // to mark related requests as abandoned, so they do not attempt to reference this filter anymore.
   // Impl note: this is similar to what Redis filter does.
   void abandonAllInFlightRequests();
+
+  const int32_t filter_id_;
 
   const RequestDecoderSharedPtr request_decoder_;
 
