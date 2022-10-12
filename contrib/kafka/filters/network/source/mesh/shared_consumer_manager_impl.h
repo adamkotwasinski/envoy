@@ -8,6 +8,8 @@
 
 #include "source/common/common/logger.h"
 
+#include "contrib/kafka/filters/network/source/kafka_types.h"
+
 #include "contrib/kafka/filters/network/source/mesh/shared_consumer_manager.h"
 #include "contrib/kafka/filters/network/source/mesh/upstream_config.h"
 #include "contrib/kafka/filters/network/source/mesh/upstream_kafka_consumer.h"
@@ -17,6 +19,44 @@ namespace Extensions {
 namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
+
+// =============================================================================================================
+
+/**
+ * Meaningful state for upstream-pointing consumer.
+ * Keeps messages received so far that nobody was interested in.
+ * Keeps callbacks that are interested in messages.
+ */
+class Store : public StoreCb, private Logger::Loggable<Logger::Id::kafka> {
+public:
+
+  // StoreCb
+  bool hasInterest(const std::string& topic) const override;
+
+  // StoreCb
+  void receive(RdKafkaMessagePtr message) override;
+
+  // XXX
+  void getRecordsOrRegisterCallback(const RecordCbSharedPtr& callback);
+
+  // XXX
+  void removeCallback(const RecordCbSharedPtr& callback);
+
+private:
+
+  /**
+   * Invariant: for every i: KafkaPartition, the following holds:
+   * !(partition_to_callbacks_[i].size() >= 0 && messages_waiting_for_interest_[i].size() >= 0)
+   */
+
+  mutable absl::Mutex callbacks_mutex_;
+  std::map<KafkaPartition, std::vector<RecordCbSharedPtr>> partition_to_callbacks_ ABSL_GUARDED_BY(callbacks_mutex_);
+
+  mutable absl::Mutex messages_mutex_;
+  std::map<KafkaPartition, std::vector<RdKafkaMessagePtr>> messages_waiting_for_interest_ ABSL_GUARDED_BY(messages_mutex_);
+};
+
+// =============================================================================================================
 
 /**
  * Implements SCM interface by maintaining a collection of Kafka consumers on per-topic basis.
@@ -33,9 +73,9 @@ public:
   /**
    * Registers a callback that is interested in messages for particular partitions.
    */
-  void registerFetchCallback(RecordCbSharedPtr callback, FetchSpec fetches) override;
+  void getRecordsOrRegisterCallback(const RecordCbSharedPtr& callback) override;
 
-  void unregisterFetchCallback(RecordCbSharedPtr callback) override;
+  void removeCallback(const RecordCbSharedPtr& callback) override;
 
 private:
   KafkaConsumer& getOrCreateConsumer(const std::string& topic);
@@ -47,7 +87,11 @@ private:
 
   mutable absl::Mutex consumers_mutex_;
   std::map<std::string, KafkaConsumerPtr> topic_to_consumer_ ABSL_GUARDED_BY(consumers_mutex_);
+
+  Store store_;
 };
+
+// =============================================================================================================
 
 } // namespace Mesh
 } // namespace Kafka

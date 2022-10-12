@@ -46,16 +46,16 @@ public:
   Reply receive(RdKafkaMessagePtr message) override;
 
   // RecordCb
-  std::string debugId() const override;
+  TopicToPartitionsMap interest() const override;
 
-  //XXX
-  int32_t id() const override;
+  // RecordCb
+  std::string debugId() const override;
 
 private:
 
   // Invoked internally when we want to mark this Fetch request as done.
-  // This means: we are no longer interested in future messages and need to unregister ourselves.
-  void markFinishedAndCleanup();
+  // This means: we are no longer interested in future messages and might need to unregister ourselves.
+  void markFinishedAndCleanup(bool unregister);
 
 // Provides access to upstream-pointing consumers.
   SharedConsumerManager& consumer_manager_;

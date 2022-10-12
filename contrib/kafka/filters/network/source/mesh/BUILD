@@ -42,9 +42,9 @@ envoy_cc_library(
     tags = ["skip_on_windows"],
     deps = [
         ":abstract_command_lib",
+        ":fetch_purger_lib",
         ":request_processor_lib",
         ":shared_consumer_manager_lib",
-        ":fetch_purger_lib",
         ":upstream_config_lib",
         ":upstream_kafka_facade_lib",
         "//contrib/kafka/filters/network/source:kafka_request_codec_lib",
@@ -68,9 +68,9 @@ envoy_cc_library(
     tags = ["skip_on_windows"],
     deps = [
         ":abstract_command_lib",
+        ":fetch_purger_lib",
         ":upstream_config_lib",
         ":upstream_kafka_facade_lib",
-        ":fetch_purger_lib",
         "//contrib/kafka/filters/network/source:kafka_request_codec_lib",
         "//contrib/kafka/filters/network/source:kafka_request_parser_lib",
         "//contrib/kafka/filters/network/source/mesh:shared_consumer_manager_impl_lib",
@@ -95,6 +95,7 @@ envoy_cc_library(
     deps = [
         "//contrib/kafka/filters/network/source:kafka_response_lib",
         "//contrib/kafka/filters/network/source:tagged_fields_lib",
+        "//envoy/event:dispatcher_interface",
     ],
 )
 
@@ -125,6 +126,7 @@ envoy_cc_library(
     deps = [
         ":upstream_config_lib",
         ":upstream_kafka_consumer_lib",
+        "//envoy/server:lifecycle_notifier_interface",
     ],
 )
 
@@ -138,15 +140,16 @@ envoy_cc_library(
         ":upstream_config_lib",
         ":upstream_kafka_consumer_impl_lib",
         ":upstream_kafka_consumer_lib",
+        "//contrib/kafka/filters/network/source:kafka_types_lib",
         "//source/common/common:minimal_logger_lib",
     ],
 )
 
 envoy_cc_library(
     name = "fetch_purger_lib",
-    hdrs = ["fetch_purger.h"],
     srcs = [
     ],
+    hdrs = ["fetch_purger.h"],
     tags = ["skip_on_windows"],
     deps = [
         "//envoy/event:timer_interface",
@@ -155,13 +158,13 @@ envoy_cc_library(
 
 envoy_cc_library(
     name = "fetch_purger_impl_lib",
-    hdrs = ["fetch_purger_impl.h"],
     srcs = ["fetch_purger_impl.cc"],
+    hdrs = ["fetch_purger_impl.h"],
     tags = ["skip_on_windows"],
     deps = [
         ":fetch_purger_lib",
-        "//envoy/thread_local:thread_local_interface",
         "//envoy/event:dispatcher_interface",
+        "//envoy/thread_local:thread_local_interface",
         "//source/common/common:minimal_logger_lib",
     ],
 )
@@ -218,7 +221,7 @@ envoy_cc_library(
     ],
     tags = ["skip_on_windows"],
     deps = [
-        envoy_external_dep_path("librdkafka"),
+        ":inbound_record_lib",
     ],
 )
 
@@ -232,10 +235,10 @@ envoy_cc_library(
     ],
     tags = ["skip_on_windows"],
     deps = [
+        ":librdkafka_utils_impl_lib",
         ":upstream_kafka_consumer_lib",
         "//envoy/event:dispatcher_interface",
         "//source/common/common:minimal_logger_lib",
-        envoy_external_dep_path("librdkafka"),
     ],
 )
 
