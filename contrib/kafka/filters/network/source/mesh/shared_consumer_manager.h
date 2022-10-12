@@ -11,9 +11,6 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
-// Topic name to topic partitions.
-using FetchSpec = std::map<std::string, std::vector<int32_t>>;
-
 /**
  * Manages (raw) Kafka consumers pointing to upstream Kafka clusters.
  * It is expected to have only one instance of this object in the runtime.
@@ -22,9 +19,9 @@ class SharedConsumerManager {
 public:
   virtual ~SharedConsumerManager() = default;
 
-  virtual void registerFetchCallback(RecordCbSharedPtr callback, FetchSpec fetches) PURE; // const& ?
+  virtual void getRecordsOrRegisterCallback(const RecordCbSharedPtr& callback) PURE;
 
-  virtual void unregisterFetchCallback(RecordCbSharedPtr callback) PURE; // const& ?
+  virtual void removeCallback(const RecordCbSharedPtr& callback) PURE;
 };
 
 using SharedConsumerManagerSharedPtr = std::shared_ptr<SharedConsumerManager>;

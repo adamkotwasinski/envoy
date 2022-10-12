@@ -21,26 +21,33 @@ FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
 void FetchRequestHolder::startProcessing() {
   std::ostringstream oss;
   oss << std::this_thread::get_id();
-  ENVOY_LOG(info, "Fetch request [{}] has been received in thread [{}]", request_->request_header_.correlation_id_, oss.str());
+  ENVOY_LOG(info, "Fetch request [{}] has been received in thread [{}]", debugId(), oss.str());
+  
+  const TopicToPartitionsMap requested_topics = interest();
 
-  const std::vector<FetchTopic>& topics = request_->data_.topics_;
-  FetchSpec fetches_requested;
-  for (const auto& topic : topics) {
-    const std::string topic_name = topic.topic_;
-    const std::vector<FetchPartition> partitions = topic.partitions_;
-    for (const auto partition : partitions) {
-      const int32_t partition_id = partition.partition_;
-      fetches_requested[topic_name].push_back(partition_id);
+  // Extreme corner case: Fetch request without topics to fetch.
+  if (requested_topics.size() == 0) {
+    absl::MutexLock lock(&state_mutex_);
+    ENVOY_LOG(info, "Fetch request [{}] finished by the virtue of requiring nothing", debugId());
+    markFinishedAndCleanup(false);
+    notifyFilter();
+    return; // Early return for degenerate request.
+  }
 
-      // This makes sure that all requested KafkaPartitions are tracked,
-      // so then output generation is simpler.
-      absl::MutexLock lock(&state_mutex_);
-      messages_[{topic_name, partition_id}] = {};
+  {
+    absl::MutexLock lock(&state_mutex_);
+    for (const auto& topic_and_partitions : requested_topics) {
+      const std::string& topic_name = topic_and_partitions.first;
+      for (const int32_t partition : topic_and_partitions.second) {
+        // This makes sure that all requested KafkaPartitions are tracked,
+        // so then output generation is simpler.
+        messages_[{topic_name, partition}] = {};
+      }
     }
   }
 
-  auto self_reference = shared_from_this();
-  consumer_manager_.registerFetchCallback(self_reference, fetches_requested);
+  const auto self_reference = shared_from_this();
+  consumer_manager_.getRecordsOrRegisterCallback(self_reference);
 
   // XXX Make this conditional in finished?
   Event::TimerCb callback = [this]() -> void { 
@@ -48,56 +55,62 @@ void FetchRequestHolder::startProcessing() {
   };
   timer_ = fetch_purger_.track(callback, 1234);
 
-  // Extreme corner case: Fetch request without topics to fetch.
-  if (0 == fetches_requested.size()) {
-    absl::MutexLock lock(&state_mutex_);
-    ENVOY_LOG(info, "Fetch request [{}] finished by the virtue of requiring nothing", debugId());
-    markFinishedAndCleanup();
-  } //XXX to powinno byc w wielkim ifie ze wczesnym return
-
+  // XXX this might be better in markFinishedAndCleanup
   if (finished()) {
     notifyFilter();
   }
+}
+
+TopicToPartitionsMap FetchRequestHolder::interest() const {
+  TopicToPartitionsMap result;
+  const std::vector<FetchTopic>& topics = request_->data_.topics_;
+  for (const FetchTopic& topic : topics) {
+    const std::string topic_name = topic.topic_;
+    const std::vector<FetchPartition> partitions = topic.partitions_;
+    for (const FetchPartition& partition : partitions) {
+      result[topic_name].push_back(partition.partition_);
+    }
+  }
+  return result;
 }
 
 void FetchRequestHolder::markFinishedByTimer() {
   ENVOY_LOG(info, "Fetch request {} timed out", debugId());
   {
     absl::MutexLock lock(&state_mutex_);
-    markFinishedAndCleanup();
+    markFinishedAndCleanup(true);
   }
   notifyFilter();
 }
 
+// XXX temporary solution only
+constexpr int32_t MINIMAL_MSG_CNT = 3;
+
 // Remember this method is called by a non-Envoy thread.
 Reply FetchRequestHolder::receive(RdKafkaMessagePtr message) {
-  {
-    absl::MutexLock lock(&state_mutex_);
-    if (!finished_) {
-      const KafkaPartition kp = { message->topic_name(), message->partition() };
-      messages_[kp].push_back(message);
-      
-      uint32_t current_messages = 0;
-      for (const auto& e : messages_) {
-        current_messages += e.second.size();
-      }
+  absl::MutexLock lock(&state_mutex_);
+  if (!finished_) {
+    const KafkaPartition kp = { message->topic_name(), message->partition() };
+    messages_[kp].push_back(message);
+    
+    uint32_t current_messages = 0;
+    for (const auto& e : messages_) {
+      current_messages += e.second.size();
+    }
 
-      if (current_messages < 3) {
-        // XXX we want 3 messages at least!
-        ENVOY_LOG(info, "Fetch request {} processed message (and wants more {}): {}/{}", debugId(), current_messages, message->partition(), message->offset());
-        return Reply::ACCEPTED_AND_WANT_MORE;
-      } else {
-        ENVOY_LOG(info, "Fetch request {} processed message (and is finished {}): {}/{}", debugId(), current_messages, message->partition(), message->offset());
-        // We have all we needed, we can finish processing.
-        markFinishedAndCleanup();
-        //notifyFilterThruDispatcher();
-        return Reply::ACCEPTED_AND_FINISHED;
-      }
+    if (current_messages < MINIMAL_MSG_CNT) {
+      ENVOY_LOG(info, "Fetch request {} processed message (and wants more {}): {}/{}", debugId(), current_messages, message->partition(), message->offset());
+      return Reply::ACCEPTED_AND_WANT_MORE;
+    } else {
+      ENVOY_LOG(info, "Fetch request {} processed message (and is finished with {}): {}/{}", debugId(), current_messages, message->partition(), message->offset());
+      // We have all we needed, we can finish processing.
+      markFinishedAndCleanup(false);
+      return Reply::ACCEPTED_AND_FINISHED;
     }
-    else {
-      ENVOY_LOG(info, "Fetch request {} rejected message: {}/{}", debugId(), message->partition(), message->offset());
-      return Reply::REJECTED;
-    }
+  }
+  else {
+    ENVOY_LOG(info, "Fetch request {} rejected message: {}/{}", debugId(), message->partition(), message->offset());
+    return Reply::REJECTED;
   }
 }
 
@@ -107,15 +120,16 @@ std::string FetchRequestHolder::debugId() const {
   return oss.str();
 }
 
-int32_t FetchRequestHolder::id() const {
-  return request_->request_header_.correlation_id_;
-}
-
-void FetchRequestHolder::markFinishedAndCleanup() {
+void FetchRequestHolder::markFinishedAndCleanup(bool unregister) {
   ENVOY_LOG(info, "Request {} marked as finished", debugId());
   finished_ = true;
-  //auto self_reference = shared_from_this();
-  //consumer_manager_.unregisterFetchCallback(self_reference);
+
+  if (unregister) {
+    const auto self_reference = shared_from_this();
+    consumer_manager_.removeCallback(self_reference);
+  }
+
+  // XXX notifyFilterThruDispatcher(); ???
 }
 
 bool FetchRequestHolder::finished() const { 

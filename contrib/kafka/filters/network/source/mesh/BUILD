@@ -138,6 +138,7 @@ envoy_cc_library(
         ":upstream_config_lib",
         ":upstream_kafka_consumer_impl_lib",
         ":upstream_kafka_consumer_lib",
+        "//contrib/kafka/filters/network/source:kafka_types_lib",
         "//source/common/common:minimal_logger_lib",
     ],
 )
