@@ -22,11 +22,6 @@ SharedConsumerManagerImpl::~SharedConsumerManagerImpl() {
   ENVOY_LOG(info, "SCM dtor");
 }
 
-int64_t SharedConsumerManagerImpl::listOffsets(std::string topic, int32_t partition) { 
-  // Very early implementation - right now we start from beginning no matter what.
-  return 0;
-}
-
 void SharedConsumerManagerImpl::registerFetchCallback(RecordCbSharedPtr callback, FetchSpec fetches) {
   // For every fetch topic, figure out the upstream cluster,
   // create consumer if needed, and make it aware of interest.
