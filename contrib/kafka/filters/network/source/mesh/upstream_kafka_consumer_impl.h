@@ -38,59 +38,30 @@ using RdKafkaTopicPartitionRawPtr = RdKafka::TopicPartition*;
 
 using RdKafkaMessagePtr = std::shared_ptr<RdKafka::Message>;
 
-/**
- * Meaningful state for upstream-pointing consumer.
- * Keeps messages received so far that nobody was interested in.
- * Keeps callbacks that are interested in messages.
- */
-class Store : private Logger::Loggable<Logger::Id::kafka> {
-public:
-
-  bool hasCallbacks() const;
-
-  void getRecordsOrRegisterCallback(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions);
-
-  void removeCallback(RecordCbSharedPtr callback);
-
-  void processNewDelivery(RdKafkaMessagePtr message);
-
-private:
-
-  /**
-   * Invariant: for every i, the following holds:
-   * !(partition_to_callbacks_[i].size() >= 0 && messages_waiting_for_interest_[i].size() >= 0)
-   */
-
-  mutable absl::Mutex callbacks_mutex_;
-  std::map<int32_t, std::vector<RecordCbSharedPtr>> partition_to_callbacks_ ABSL_GUARDED_BY(callbacks_mutex_);
-
-  mutable absl::Mutex data_mutex_;
-  std::map<int32_t, std::vector<RdKafkaMessagePtr>> messages_waiting_for_interest_ ABSL_GUARDED_BY(data_mutex_);
-  // XXX paused_partitions_ field
-};
-
 class RichKafkaConsumer : public KafkaConsumer, private Logger::Loggable<Logger::Id::kafka> {
 public:
   // Main constructor.
-  RichKafkaConsumer(Thread::ThreadFactory& thread_factory, const std::string& topic,
+  RichKafkaConsumer(StoreCb& store_cb, Thread::ThreadFactory& thread_factory, const std::string& topic,
                     int32_t partition_count, const RawKafkaConfig& configuration);
 
-  // Visible for testing (allows injection of LibRdKafkaUtils).
-  RichKafkaConsumer(Thread::ThreadFactory& thread_factory, const std::string& topic,
+  // Visible for testing (allows injection of LibRdKafkaUtils2).
+  RichKafkaConsumer(StoreCb& store_cb, Thread::ThreadFactory& thread_factory, const std::string& topic,
                     int32_t partition_count, const RawKafkaConfig& configuration,
                     const LibRdKafkaUtils2& utils);
 
   // More complex than usual - closes the real Kafka consumer.
   ~RichKafkaConsumer() override;
 
-  // KafkaConsumer
-  void getRecordsOrRegisterCallback(RecordCbSharedPtr callback, const std::vector<int32_t>& partitions) override;
-
   // XXX private?
   void pollContinuously();
 
 private:
+
+  // XXX
   std::vector<RdKafkaMessagePtr> receiveMessageBatch();
+
+  // XXX
+  StoreCb& store_cb_;
 
   // The topic we are consuming from.
   std::string topic_;
@@ -102,6 +73,8 @@ private:
   // Consumer's assignment.
   std::vector<RdKafkaTopicPartitionRawPtr> assignment_;
 
+  // XXX paused_partitions_ field
+
   // Flag controlling poller threads's execution.
   std::atomic<bool> poller_thread_active_;
 
@@ -109,9 +82,6 @@ private:
   // Responsible for polling for records with consumer, and passing these records to awaiting
   // requests.
   Thread::ThreadPtr poller_thread_;
-
-  // Stores interest in polled messages and messages that had no interest.
-  Store store_;
 };
 
 } // namespace Mesh
