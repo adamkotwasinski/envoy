@@ -12,8 +12,7 @@ namespace Mesh {
 
 class ListOffsetsRequestHolder : public BaseInFlightRequest {
 public:
-  ListOffsetsRequestHolder(AbstractRequestListener& filter, SharedConsumerManager& consumer_manager,
-                           const std::shared_ptr<Request<ListOffsetsRequest>> request);
+  ListOffsetsRequestHolder(AbstractRequestListener& filter, const std::shared_ptr<Request<ListOffsetsRequest>> request);
 
   void startProcessing() override;
 
@@ -22,8 +21,6 @@ public:
   AbstractResponseSharedPtr computeAnswer() const override;
 
 private:
-  // Provides access to upstream-pointing consumers.
-  SharedConsumerManager& consumer_manager_;
   // Original request.
   const std::shared_ptr<Request<ListOffsetsRequest>> request_;
 };

@@ -8,10 +8,8 @@ namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
-ListOffsetsRequestHolder::ListOffsetsRequestHolder(
-    AbstractRequestListener& filter, SharedConsumerManager& consumer_manager,
-    const std::shared_ptr<Request<ListOffsetsRequest>> request)
-    : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, request_{request} {}
+ListOffsetsRequestHolder::ListOffsetsRequestHolder(AbstractRequestListener& filter, const std::shared_ptr<Request<ListOffsetsRequest>> request)
+    : BaseInFlightRequest{filter}, request_{request} {}
 
 void ListOffsetsRequestHolder::startProcessing() { notifyFilter(); }
 
@@ -20,8 +18,6 @@ bool ListOffsetsRequestHolder::finished() const { return true; }
 AbstractResponseSharedPtr ListOffsetsRequestHolder::computeAnswer() const {
   const auto& header = request_->request_header_;
   const ResponseMetadata metadata = {header.api_key_, header.api_version_, header.correlation_id_};
-
-  std::ostringstream debug;
 
   // The response contains all the requested topics (we do not do any filtering here).
   const auto& topics = request_->data_.topics_;
@@ -34,17 +30,14 @@ AbstractResponseSharedPtr ListOffsetsRequestHolder::computeAnswer() const {
     for (const auto& partition : partitions) {
       const int16_t error_code = 0;
       const int64_t timestamp = 0;
-      const int64_t offset = consumer_manager_.listOffsets(topic.name_, partition.partition_index_);
-      const ListOffsetsPartitionResponse partition_response = {partition.partition_index_,
-                                                               error_code, timestamp, offset};
-      debug << topic.name_ << "-" << partition.partition_index_ << ", ";
+      /* As we are going to ignore consumer offset requests, we can reply with dummy values. */
+      const int64_t offset = 0;
+      const ListOffsetsPartitionResponse partition_response = {partition.partition_index_, error_code, timestamp, offset};
       partition_responses.push_back(partition_response);
     }
     const ListOffsetsTopicResponse topic_response = {topic.name_, partition_responses};
     topic_responses.push_back(topic_response);
   }
-
-  ENVOY_LOG(info, "list-offsets: {}", debug.str());
 
   const ListOffsetsResponse data = {topic_responses};
   return std::make_shared<Response<ListOffsetsResponse>>(metadata, data);
