@@ -31,7 +31,7 @@ class Store : public StoreCb, private Logger::Loggable<Logger::Id::kafka> {
 public:
 
   // StoreCb
-  bool hasInterest(const std::string& topic) const override;
+  void waitUntilInterest(const std::string& topic) const override;
 
   // StoreCb
   void receive(RdKafkaMessagePtr message) override;
@@ -43,6 +43,9 @@ public:
   void removeCallback(const RecordCbSharedPtr& callback);
 
 private:
+
+  // XXX
+  bool hasInterest(const std::string& topic) const;
 
   /**
    * Invariant: for every i: KafkaPartition, the following holds:
