@@ -52,9 +52,9 @@ SharedConsumerManagerImpl::SharedConsumerManagerImpl(
 
 SharedConsumerManagerImpl::~SharedConsumerManagerImpl() {
   // XXX
-  absl::MutexLock lock(&consumers_mutex_);
-  ENVOY_LOG(info, "SCM dtor {}", topic_to_consumer_.size());
-  topic_to_consumer_.erase(topic_to_consumer_.begin(), topic_to_consumer_.end());
+  // absl::MutexLock lock(&consumers_mutex_);
+  // ENVOY_LOG(info, "SCM dtor {}", topic_to_consumer_.size());
+  // topic_to_consumer_.erase(topic_to_consumer_.begin(), topic_to_consumer_.end());
 }
 
 void SharedConsumerManagerImpl::getRecordsOrRegisterCallback(const RecordCbSharedPtr& callback) {
@@ -63,7 +63,7 @@ void SharedConsumerManagerImpl::getRecordsOrRegisterCallback(const RecordCbShare
   const TopicToPartitionsMap interest = callback->interest(); 
   for (const auto& fetch : interest) {
     const std::string& topic = fetch.first;
-    KafkaConsumer& consumer = getOrCreateConsumer(topic); // XXX unused
+    getOrCreateConsumer(topic); // XXX this method should not be named 'get...'
   }
   // ... and start processing.
   store_.getRecordsOrRegisterCallback(callback);
@@ -101,8 +101,12 @@ void SharedConsumerManagerImpl::removeCallback(const RecordCbSharedPtr& callback
 
 // =============== STORE ==========================================================================================
 
-bool Store::hasInterest(const std::string& topic) const { // XXX
-  absl::MutexLock lock(&callbacks_mutex_);
+void Store::waitUntilInterest(const std::string& topic) const {
+  auto store_has_interest = [this, &topic]() { return hasInterest(topic); };
+  absl::MutexLock lock { &callbacks_mutex_, absl::Condition(&store_has_interest) };
+}
+
+bool Store::hasInterest(const std::string& topic) const {
   for (const auto& e : partition_to_callbacks_) {
     if (topic == e.first.first && !e.second.empty()) {
       return true;
@@ -180,7 +184,7 @@ void Store::receive(RdKafkaMessagePtr message) {
 
   const KafkaPartition kafka_partition = {message->topic_name(), message->partition()};
 
-  auto& callbacks = partition_to_callbacks_[kafka_partition];
+  auto& callbacks = partition_to_callbacks_[kafka_partition]; // FIXME bad access, lock callbacks_mutex_
   bool consumed = false;
 
   // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
@@ -223,12 +227,13 @@ void Store::receive(RdKafkaMessagePtr message) {
 void Store::removeCallback(const RecordCbSharedPtr& callback) {
   ENVOY_LOG(info, "Removing callback {}", callback->debugId());
 
-  // absl::MutexLock lock(&consumers_mutex_);
+  // absl::MutexLock lock(&callbacks_mutex_);
   // for (const auto& topic_and_partition : callback->interest()) {
   //   const std::string& topic = topic_and_partition.first;
   //   topic_to_consumer_[topic]->removeCallback(callback);
   // }
 
+  absl::MutexLock lock(&callbacks_mutex_);
   int removed = 0;
   for (auto& e : partition_to_callbacks_) {
     auto& partition_callbacks = e.second;
