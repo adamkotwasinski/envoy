@@ -99,17 +99,21 @@ RichKafkaConsumer::~RichKafkaConsumer() {
 
 void RichKafkaConsumer::pollContinuously() {
   while (poller_thread_active_) {
-    if (store_cb_.hasInterest(topic_)) { // There should be a partition check here.
-      std::vector<RdKafkaMessagePtr> kafka_messages = receiveMessageBatch();
-      if (0 != kafka_messages.size()) {
-        for (auto& kafka_message : kafka_messages) {
-          store_cb_.receive(kafka_message);
-        }
-      }
-    } else {
-      // There's no interest in any messages, just sleep for now.
-      std::this_thread::sleep_for(std::chrono::seconds(1)); // XXX this should not be a sleep, we should sleep on condition "there are callbacks"
+
+    store_cb_.waitUntilInterest(topic_);
+
+    if (!poller_thread_active_) {
+      ENVOY_LOG(info, "early exit [{}]", topic_);
+      break;
     }
+
+    std::vector<RdKafkaMessagePtr> kafka_messages = receiveMessageBatch();
+    if (0 != kafka_messages.size()) {
+      for (auto& kafka_message : kafka_messages) {
+        store_cb_.receive(kafka_message);
+      }
+    }
+
   }
   ENVOY_LOG(info, "Poller thread for consumer [{}] finished", topic_);
 }
@@ -118,8 +122,7 @@ const static int32_t BUFFER_DRAIN_VOLUME = 4;
 
 std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
   // This message kicks off librdkafka consumer's Fetch requests and delivers a message.
-  ENVOY_LOG(info, "fetch! {}", topic_);
-  RdKafkaMessagePtr message = std::shared_ptr<RdKafka::Message>(consumer_->consume(1000));
+  RdKafkaMessagePtr message = std::shared_ptr<RdKafka::Message>(consumer_->consume(1000)); // XXX what value should we pass here?
   switch (message->err()) {
     case RdKafka::ERR_NO_ERROR: {
       ENVOY_LOG(info, "Received message: {}-{}, offset={}", message->topic_name(), message->partition(), message->offset());
@@ -129,15 +132,12 @@ std::vector<RdKafkaMessagePtr> RichKafkaConsumer::receiveMessageBatch() {
       // We got a message, there could be something left in the buffer, so we try to drain it by
       // consuming without waiting. See: https://github.com/edenhill/librdkafka/discussions/3897
       while (result.size() < BUFFER_DRAIN_VOLUME) {
-        int i = 0;
         RdKafkaMessagePtr buffered_message = std::unique_ptr<RdKafka::Message>(consumer_->consume(0));
         if (RdKafka::ERR_NO_ERROR == buffered_message->err()) {
           // There was a message in the buffer.
           ENVOY_LOG(info, "Received buffered message: {}-{}, offset={}", buffered_message->topic_name(), buffered_message->partition(), buffered_message->offset());
           result.push_back(buffered_message);
-          i++;
         } else {
-          ENVOY_LOG(info, "buffer drained! {}", i);
           // Buffer is empty / consumer is failing - there is nothing more to consume.
           break;
         }

@@ -53,8 +53,10 @@ public:
 
   virtual void receive(RdKafkaMessagePtr message) PURE;
 
-  virtual bool hasInterest(const std::string& topic) const PURE;
+  virtual void waitUntilInterest(const std::string& topic) const PURE;
 };
+
+using StoreCbPtr = std::unique_ptr<StoreCb>;
 
 /**
  * Kafka consumer pointing to some upstream Kafka cluster.
