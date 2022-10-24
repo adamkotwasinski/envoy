@@ -52,13 +52,13 @@ public:
   // More complex than usual - closes the real Kafka consumer.
   ~RichKafkaConsumer() override;
 
-  // XXX private?
-  void pollContinuously();
-
 private:
 
   // XXX
   std::vector<RdKafkaMessagePtr> receiveMessageBatch();
+
+  // XXX
+  void pollContinuously();
 
   // XXX
   StoreCb& store_cb_;
