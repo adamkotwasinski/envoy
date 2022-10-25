@@ -52,11 +52,6 @@ Network::FilterFactoryCb KafkaMeshConfigFactory::createFilterFactoryFromProtoTyp
   // Manages fetch request timeouts.
   const FetchPurgerSharedPtr fetch_purger = std::make_shared<FetchPurgerImpl>(context.threadLocal());
 
-  // threadlocalX ma dostep do dispatchera
-  // czyli dispatcher/worker thread
-  // i w takim przypadku ten dispatcher tez jest skalowany per --concurrency
-  // czyli my zarzadzamy cleaningiem
-
   return [configuration, upstream_kafka_facade,
           shared_consumer_manager, fetch_purger](Network::FilterManager& filter_manager) -> void {
     Network::ReadFilterSharedPtr filter = std::make_shared<KafkaMeshFilter>(
