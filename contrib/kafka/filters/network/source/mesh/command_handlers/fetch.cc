@@ -80,13 +80,14 @@ void FetchRequestHolder::markFinishedByTimer() {
     absl::MutexLock lock(&state_mutex_);
     markFinishedAndCleanup(true);
   }
-  notifyFilter();
+  // XXX tutaj watek jest wystarczajacy by zrobic
+  // notifyFilter();
 }
 
 // XXX temporary solution only
 constexpr int32_t MINIMAL_MSG_CNT = 3;
 
-// Remember this method is called by a non-Envoy thread.
+// This method is called by a Kafka-consumer thread (not Envoy-worker one).
 Reply FetchRequestHolder::receive(RdKafkaMessagePtr message) {
   absl::MutexLock lock(&state_mutex_);
   if (!finished_) {
@@ -129,7 +130,10 @@ void FetchRequestHolder::markFinishedAndCleanup(bool unregister) {
     consumer_manager_.removeCallback(self_reference);
   }
 
-  // XXX notifyFilterThruDispatcher(); ???
+  // Our request is ready and can be sent downstream.
+  // However, the caller here could be a Kafka-consumer worker thread (not an Envoy worker one),
+  // so we need to use dispatcher to notify the filter that we are finished.
+  filter_.onRequestReadyForAnswerThruDispatcher();
 }
 
 bool FetchRequestHolder::finished() const { 
