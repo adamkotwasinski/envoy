@@ -19,10 +19,6 @@ FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
     : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, fetch_purger_{fetch_purger}, request_{request} {}
 
 void FetchRequestHolder::startProcessing() {
-  std::ostringstream oss;
-  oss << std::this_thread::get_id();
-  ENVOY_LOG(info, "Fetch request [{}] has been received in thread [{}]", debugId(), oss.str());
-  
   const TopicToPartitionsMap requested_topics = interest();
 
   // Extreme corner case: Fetch request without topics to fetch.
@@ -50,10 +46,10 @@ void FetchRequestHolder::startProcessing() {
   consumer_manager_.getRecordsOrRegisterCallback(self_reference);
 
   // XXX Make this conditional in finished?
-  Event::TimerCb callback = [this]() -> void { 
+  Event::TimerCb callback = [this]() -> void {
     markFinishedByTimer();
   };
-  timer_ = fetch_purger_.track(callback, 1234);
+  timer_ = fetch_purger_.track(callback, 1234); // XXX 1234!
 
   // XXX this might be better in markFinishedAndCleanup
   if (finished()) {
@@ -80,8 +76,6 @@ void FetchRequestHolder::markFinishedByTimer() {
     absl::MutexLock lock(&state_mutex_);
     markFinishedAndCleanup(true);
   }
-  // XXX tutaj watek jest wystarczajacy by zrobic
-  // notifyFilter();
 }
 
 // XXX temporary solution only
@@ -133,7 +127,10 @@ void FetchRequestHolder::markFinishedAndCleanup(bool unregister) {
   // Our request is ready and can be sent downstream.
   // However, the caller here could be a Kafka-consumer worker thread (not an Envoy worker one),
   // so we need to use dispatcher to notify the filter that we are finished.
-  filter_.onRequestReadyForAnswerThruDispatcher();
+  // Also, our timer could have kicked off after the filter has been destroyed, so we need to keep a valid reference.
+  if (filter_active_) { // XXX this is thread-unsafe (filter's dtor does not run in the same thread as this method)
+    filter_.onRequestReadyForAnswerThruDispatcher();
+  }
 }
 
 bool FetchRequestHolder::finished() const { 
