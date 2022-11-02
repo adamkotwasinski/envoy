@@ -188,8 +188,7 @@ void Store::receive(RdKafkaMessagePtr message) {
   bool consumed = false;
 
   // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
-  if (!callbacks.empty()) { // FIXME this should be a for loop across all callbacks, otherwise we are not multithreaded
-    const auto& callback = callbacks[0]; 
+  for (const auto& callback : callbacks) { // FIXME bad access, lock callbacks_mutex_ (see above)
     Reply callback_status = callback->receive(message);
     switch (callback_status) {
       case Reply::ACCEPTED_AND_FINISHED: {
@@ -205,6 +204,11 @@ void Store::receive(RdKafkaMessagePtr message) {
       case Reply::REJECTED: {
         break;
       }
+    } /* switch */
+
+    /* Some callback has taken the message - this is good, no more iterating. */
+    if (consumed) {
+      break;
     }
   }
 
