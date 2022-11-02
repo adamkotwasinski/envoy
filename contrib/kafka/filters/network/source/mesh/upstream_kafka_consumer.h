@@ -53,7 +53,7 @@ public:
 
   virtual void receive(RdKafkaMessagePtr message) PURE;
 
-  virtual void waitUntilInterest(const std::string& topic) const PURE;
+  virtual bool waitUntilInterest(const std::string& topic, const int32_t timeout_ms) const PURE;
 };
 
 using StoreCbPtr = std::unique_ptr<StoreCb>;
