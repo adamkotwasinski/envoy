@@ -100,11 +100,10 @@ RichKafkaConsumer::~RichKafkaConsumer() {
 void RichKafkaConsumer::pollContinuously() {
   while (poller_thread_active_) {
 
-    store_cb_.waitUntilInterest(topic_);
-
-    if (!poller_thread_active_) {
-      ENVOY_LOG(info, "early exit [{}]", topic_);
-      break;
+    bool can_poll = store_cb_.waitUntilInterest(topic_, 2345); // XXX same problem as kafka-producer
+    if (!can_poll) {
+      // There is nothing to do, so we keep checking again - also we happen to check if we were closed.
+      continue;
     }
 
     std::vector<RdKafkaMessagePtr> kafka_messages = receiveMessageBatch();
