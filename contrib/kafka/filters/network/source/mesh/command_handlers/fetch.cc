@@ -21,15 +21,6 @@ FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
 void FetchRequestHolder::startProcessing() {
   const TopicToPartitionsMap requested_topics = interest();
 
-  // Extreme corner case: Fetch request without topics to fetch.
-  if (requested_topics.size() == 0) {
-    absl::MutexLock lock(&state_mutex_);
-    ENVOY_LOG(info, "Fetch request [{}] finished by the virtue of requiring nothing", debugId());
-    markFinishedAndCleanup(false);
-    notifyFilter();
-    return; // Early return for degenerate request.
-  }
-
   {
     absl::MutexLock lock(&state_mutex_);
     for (const auto& topic_and_partitions : requested_topics) {
@@ -45,16 +36,13 @@ void FetchRequestHolder::startProcessing() {
   const auto self_reference = shared_from_this();
   consumer_manager_.getRecordsOrRegisterCallback(self_reference);
 
-  // XXX Make this conditional in finished?
+  // XXX 1 Make this conditional in finished?
+  // XXX 2 replace this -> self_reference ??? or just take a look into TimerCB dtor
   Event::TimerCb callback = [this]() -> void {
+    // Fun fact: if the request is degenerate (no partitions requested), this will make it be processed.
     markFinishedByTimer();
   };
   timer_ = fetch_purger_.track(callback, 1234); // XXX 1234!
-
-  // XXX this might be better in markFinishedAndCleanup
-  if (finished()) {
-    notifyFilter();
-  }
 }
 
 TopicToPartitionsMap FetchRequestHolder::interest() const {
@@ -70,12 +58,14 @@ TopicToPartitionsMap FetchRequestHolder::interest() const {
   return result;
 }
 
+// This method is called by a Envoy-worker thread.
 void FetchRequestHolder::markFinishedByTimer() {
   ENVOY_LOG(info, "Fetch request {} timed out", debugId());
   {
     absl::MutexLock lock(&state_mutex_);
-    markFinishedAndCleanup(true);
+    finished_ = true;
   }
+  cleanup(true);
 }
 
 // XXX temporary solution only
@@ -99,7 +89,8 @@ Reply FetchRequestHolder::receive(RdKafkaMessagePtr message) {
     } else {
       ENVOY_LOG(info, "Fetch request {} processed message (and is finished with {}): {}/{}", debugId(), current_messages, message->partition(), message->offset());
       // We have all we needed, we can finish processing.
-      markFinishedAndCleanup(false);
+      finished_ = true;
+      cleanup(false);
       return Reply::ACCEPTED_AND_FINISHED;
     }
   }
@@ -115,10 +106,7 @@ std::string FetchRequestHolder::debugId() const {
   return oss.str();
 }
 
-void FetchRequestHolder::markFinishedAndCleanup(bool unregister) {
-  ENVOY_LOG(info, "Request {} marked as finished", debugId());
-  finished_ = true;
-
+void FetchRequestHolder::cleanup(bool unregister) {
   if (unregister) {
     const auto self_reference = shared_from_this();
     consumer_manager_.removeCallback(self_reference);

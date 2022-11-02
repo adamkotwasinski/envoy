@@ -26,12 +26,16 @@ namespace Mesh {
  * Meaningful state for upstream-pointing consumer.
  * Keeps messages received so far that nobody was interested in.
  * Keeps callbacks that are interested in messages.
+ *
+ * Mutex locking order:
+ * 1. store's consumer list mutex (consumers_mutex_)
+ * 2. message's data mutex (data_mutex_)
  */
 class Store : public StoreCb, private Logger::Loggable<Logger::Id::kafka> {
 public:
 
   // StoreCb
-  void waitUntilInterest(const std::string& topic) const override;
+  bool waitUntilInterest(const std::string& topic, const int32_t timeout_ms) const override;
 
   // StoreCb
   void receive(RdKafkaMessagePtr message) override;
@@ -46,6 +50,9 @@ private:
 
   // XXX
   bool hasInterest(const std::string& topic) const;
+
+  // HAX!
+  void removeCallbackWithoutLocking(const RecordCbSharedPtr& callback, std::map<KafkaPartition, std::vector<RecordCbSharedPtr>>& partition_to_callbacks);
 
   /**
    * Invariant: for every i: KafkaPartition, the following holds:
@@ -85,13 +92,13 @@ private:
   // Mutates 'topic_to_consumer_'.
   KafkaConsumer& registerNewConsumer(const std::string& topic);
 
+  Store store_;
+
   const UpstreamKafkaConfiguration& configuration_;
   Thread::ThreadFactory& thread_factory_;
 
   mutable absl::Mutex consumers_mutex_;
   std::map<std::string, KafkaConsumerPtr> topic_to_consumer_ ABSL_GUARDED_BY(consumers_mutex_);
-
-  Store store_;
 };
 
 // =============================================================================================================
