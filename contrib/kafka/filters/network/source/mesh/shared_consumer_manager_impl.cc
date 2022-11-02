@@ -52,8 +52,9 @@ SharedConsumerManagerImpl::SharedConsumerManagerImpl(
 
 SharedConsumerManagerImpl::~SharedConsumerManagerImpl() {
   // XXX
+  // ENVOY_LOG(info, "DTOR SharedConsumerManagerImpl-1");
   // absl::MutexLock lock(&consumers_mutex_);
-  // ENVOY_LOG(info, "SCM dtor {}", topic_to_consumer_.size());
+  // ENVOY_LOG(info, "DTOR SharedConsumerManagerImpl-2 {}", topic_to_consumer_.size());
   // topic_to_consumer_.erase(topic_to_consumer_.begin(), topic_to_consumer_.end());
 }
 
@@ -101,13 +102,18 @@ void SharedConsumerManagerImpl::removeCallback(const RecordCbSharedPtr& callback
 
 // =============== STORE ==========================================================================================
 
-void Store::waitUntilInterest(const std::string& topic) const {
+bool Store::waitUntilInterest(const std::string& topic, const int32_t timeout_ms) const {
   auto store_has_interest = [this, &topic]() { return hasInterest(topic); };
-  absl::MutexLock lock { &callbacks_mutex_, absl::Condition(&store_has_interest) };
+
+  // Effectively this means "has an interest appeared within timeout".
+  // If not, we let the user know so they could do something else instead of being infinitely blocked.
+  bool can_poll = callbacks_mutex_.LockWhenWithTimeout(absl::Condition(&store_has_interest), absl::Milliseconds(timeout_ms));
+  callbacks_mutex_.Unlock();
+  return can_poll;
 }
 
 bool Store::hasInterest(const std::string& topic) const {
-  for (const auto& e : partition_to_callbacks_) {
+  for (const auto& e : partition_to_callbacks_) { // XXX to ma beznadziejny warning
     if (topic == e.first.first && !e.second.empty()) {
       return true;
     }
@@ -180,40 +186,47 @@ void Store::getRecordsOrRegisterCallback(const RecordCbSharedPtr& callback) {
   }
 }
 
-void Store::receive(RdKafkaMessagePtr message) {
+void Store::receive(RdKafkaMessagePtr message) { // XXX this api is inefficient, as we acquire lock PER MESSAGE (instead of batch)
 
   const KafkaPartition kafka_partition = {message->topic_name(), message->partition()};
 
-  auto& callbacks = partition_to_callbacks_[kafka_partition]; // FIXME bad access, lock callbacks_mutex_
-  bool consumed = false;
+  // Whether this message has been consumed by any of the callbacks.
+  // Because then we can safely throw it away instead of storing.
+  bool consumed_by_callback = false;
 
-  // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
-  for (const auto& callback : callbacks) { // FIXME bad access, lock callbacks_mutex_ (see above)
-    Reply callback_status = callback->receive(message);
-    switch (callback_status) {
-      case Reply::ACCEPTED_AND_FINISHED: {
-        consumed = true;
-        // A callback is finally satisfied, it will never want more messages.
-        removeCallback(callback);
-        break;
-      }
-      case Reply::ACCEPTED_AND_WANT_MORE: {
-        consumed = true;
-        break;
-      }
-      case Reply::REJECTED: {
-        break;
-      }
-    } /* switch */
+  {
+    absl::MutexLock lock(&callbacks_mutex_);
+    auto& callbacks = partition_to_callbacks_[kafka_partition];
 
-    /* Some callback has taken the message - this is good, no more iterating. */
-    if (consumed) {
-      break;
+    // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
+    for (const auto& callback : callbacks) {
+      Reply callback_status = callback->receive(message);
+      switch (callback_status) {
+        case Reply::ACCEPTED_AND_FINISHED: {
+          consumed_by_callback = true;
+          // A callback is finally satisfied, it will never want more messages.
+          // XXX ouch ouch ouch removing while iterating over
+          removeCallbackWithoutLocking(callback, partition_to_callbacks_); // Lock was acquired at the beggining of the block.
+          break;
+        }
+        case Reply::ACCEPTED_AND_WANT_MORE: {
+          consumed_by_callback = true;
+          break;
+        }
+        case Reply::REJECTED: {
+          break;
+        }
+      } /* switch */
+
+      /* Some callback has taken the message - this is good, no more iterating. */
+      if (consumed_by_callback) {
+        break;
+      }
     }
   }
 
   // Noone is interested in our message, so we are going to store it in a local cache.
-  if (!consumed) {
+  if (!consumed_by_callback) {
     absl::MutexLock lock(&messages_mutex_);
     auto& stored_messages = messages_waiting_for_interest_[kafka_partition];
     stored_messages.push_back(message); // XXX there should be buffer limits here
@@ -229,6 +242,11 @@ void Store::receive(RdKafkaMessagePtr message) {
 }
 
 void Store::removeCallback(const RecordCbSharedPtr& callback) {
+  absl::MutexLock lock(&callbacks_mutex_);
+  removeCallbackWithoutLocking(callback, partition_to_callbacks_); // Lock was acquired a line above.
+}
+
+void Store::removeCallbackWithoutLocking(const RecordCbSharedPtr& callback, std::map<KafkaPartition, std::vector<RecordCbSharedPtr>>& partition_to_callbacks) {
   ENVOY_LOG(info, "Removing callback {}", callback->debugId());
 
   // absl::MutexLock lock(&callbacks_mutex_);
@@ -237,9 +255,8 @@ void Store::removeCallback(const RecordCbSharedPtr& callback) {
   //   topic_to_consumer_[topic]->removeCallback(callback);
   // }
 
-  absl::MutexLock lock(&callbacks_mutex_);
   int removed = 0;
-  for (auto& e : partition_to_callbacks_) {
+  for (auto& e : partition_to_callbacks) {
     auto& partition_callbacks = e.second;
     int old_size = partition_callbacks.size();
     partition_callbacks.erase(std::remove(partition_callbacks.begin(), partition_callbacks.end(), callback), partition_callbacks.end());
@@ -248,7 +265,7 @@ void Store::removeCallback(const RecordCbSharedPtr& callback) {
   }
 
   int remaining = 0;
-  for (auto& e : partition_to_callbacks_) {
+  for (auto& e : partition_to_callbacks) {
     remaining += e.second.size();
   }
 
