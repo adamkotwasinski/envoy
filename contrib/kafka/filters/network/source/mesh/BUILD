@@ -170,6 +170,18 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
+    name = "inbound_record_lib",
+    srcs = [
+    ],
+    hdrs = [
+        "inbound_record.h",
+    ],
+    tags = ["skip_on_windows"],
+    deps = [
+    ],
+)
+
+envoy_cc_library(
     name = "outbound_record_lib",
     srcs = [
     ],

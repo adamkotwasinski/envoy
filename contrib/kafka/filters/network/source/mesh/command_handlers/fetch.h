@@ -4,7 +4,8 @@
 #include "contrib/kafka/filters/network/source/mesh/abstract_command.h"
 #include "contrib/kafka/filters/network/source/mesh/shared_consumer_manager.h"
 #include "contrib/kafka/filters/network/source/mesh/upstream_kafka_consumer.h"
-#include "contrib/kafka/filters/network/source/mesh/command_handlers/fetch_record.h"
+#include "contrib/kafka/filters/network/source/mesh/inbound_record.h"
+#include "contrib/kafka/filters/network/source/mesh/command_handlers/fetch_record_converter.h"
 #include "contrib/kafka/filters/network/source/mesh/fetch_purger.h"
 
 #include "envoy/event/timer.h"
@@ -43,7 +44,7 @@ public:
   // bool isEligibleForSendingDownstream() const;
 
   // RecordCb
-  Reply receive(RdKafkaMessagePtr message) override;
+  Reply receive(InboundRecordSharedPtr message) override;
 
   // RecordCb
   TopicToPartitionsMap interest() const override;
@@ -68,7 +69,7 @@ private:
   // Whether this request has finished processing and is ready for sending upstream.
   bool finished_ ABSL_GUARDED_BY(state_mutex_) = false;
   // The messages to send downstream.
-  std::map<KafkaPartition, std::vector<RdKafkaMessagePtr>> messages_ ABSL_GUARDED_BY(state_mutex_);
+  std::map<KafkaPartition, std::vector<InboundRecordSharedPtr>> messages_ ABSL_GUARDED_BY(state_mutex_);
 
   // Timeout timer.
   Event::TimerPtr timer_;

@@ -1,4 +1,4 @@
-#include "contrib/kafka/filters/network/source/mesh/command_handlers/fetch_record.h"
+#include "contrib/kafka/filters/network/source/mesh/command_handlers/fetch_record_converter.h"
 
 #include "contrib/kafka/filters/network/source/mesh/command_handlers/crc.h"
 
@@ -34,7 +34,7 @@ Bytes computeCrc(const void* data, const size_t len) {
     return result;
 }
 
-std::vector<FetchableTopicResponse> FetchResponsePayloadProcessor::transform(const std::map<KafkaPartition, std::vector<RdKafkaMessagePtr>>& arg) const {
+std::vector<FetchableTopicResponse> FetchResponsePayloadProcessor::transform(const std::map<KafkaPartition, std::vector<InboundRecordSharedPtr>>& arg) const {
 
     std::map<KafkaPartition, Bytes> partition_to_bytes;
 
@@ -45,7 +45,7 @@ std::vector<FetchableTopicResponse> FetchResponsePayloadProcessor::transform(con
         // that would not have had any records.
         partition_to_bytes[kp] = {};
 
-        const std::vector<RdKafkaMessagePtr>& partition_records = partition_and_records.second;
+        const std::vector<InboundRecordSharedPtr>& partition_records = partition_and_records.second;
         for (const auto& record : partition_records) {
             // ENVOY_LOG(info, "processing record {}-{} / {}", record->topic_name(), record->partition(), record->offset());
             Bytes& partition_outbound_bytes = partition_to_bytes[kp];
@@ -98,7 +98,7 @@ std::vector<FetchableTopicResponse> FetchResponsePayloadProcessor::transform(con
         out.insert(out.end(), zeros.begin(), zeros.end());
 
         const KafkaPartition& kp = partition_and_records.first;
-        const std::vector<RdKafkaMessagePtr>& records = arg.find(kp)->second;
+        const std::vector<InboundRecordSharedPtr>& records = arg.find(kp)->second;
 
         // last offset delta
         int32_t last_offset_delta = htobe32(-1); /* We always claim that we are at the beginning of partition. */
@@ -207,7 +207,7 @@ uint32_t writeVarlong(int64_t arg, Buffer::Instance& dst) {
     return elements_with_1 + 1;
 }
 
-void FetchResponsePayloadProcessor::append(Bytes& out, const RdKafkaMessagePtr& ptr) const {
+void FetchResponsePayloadProcessor::append(Bytes& out, const InboundRecordSharedPtr& ptr) const {
 
     Buffer::OwnedImpl b_out;
 
@@ -235,6 +235,7 @@ void FetchResponsePayloadProcessor::append(Bytes& out, const RdKafkaMessagePtr& 
     // key: byte[]
     // ???
 
+/*
     // valueLen: varint
     const int32_t value_length = ptr->len();
     written += writeVarint(value_length, b_out);
@@ -242,6 +243,13 @@ void FetchResponsePayloadProcessor::append(Bytes& out, const RdKafkaMessagePtr& 
     // value: byte[]
     b_out.add(ptr->payload(), value_length);
     written += value_length;
+*/
+    // valueLen: varint
+    const int32_t value_length = 0;
+    written += writeVarint(value_length, b_out);
+
+    // value: byte[]
+    // ???
 
     // Headers => [Header]
     // headerKeyLength: varint

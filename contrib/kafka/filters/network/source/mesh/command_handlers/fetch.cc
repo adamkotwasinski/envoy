@@ -72,7 +72,7 @@ void FetchRequestHolder::markFinishedByTimer() {
 constexpr int32_t MINIMAL_MSG_CNT = 3;
 
 // This method is called by a Kafka-consumer thread (not Envoy-worker one).
-Reply FetchRequestHolder::receive(RdKafkaMessagePtr message) {
+Reply FetchRequestHolder::receive(InboundRecordSharedPtr message) {
   absl::MutexLock lock(&state_mutex_);
   if (!finished_) {
     const KafkaPartition kp = { message->topic_name(), message->partition() };
