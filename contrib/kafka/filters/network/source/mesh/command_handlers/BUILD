@@ -62,26 +62,25 @@ envoy_cc_library(
         "//contrib/kafka/filters/network/source/mesh:shared_consumer_manager_lib",
         "//contrib/kafka/filters/network/source/mesh:fetch_purger_lib",
         "//source/common/common:minimal_logger_lib",
-        ":fetch_record_lib",
+        ":fetch_record_converter_lib",
     ],
 )
 
 envoy_cc_library(
-    name = "fetch_record_lib",
+    name = "fetch_record_converter_lib",
     srcs = [
-        "fetch_record.cc",
+        "fetch_record_converter.cc",
     ],
     hdrs = [
-        "fetch_record.h",
+        "fetch_record_converter.h",
     ],
     tags = ["skip_on_windows"],
     deps = [
         "//source/common/common:minimal_logger_lib", 
         "//contrib/kafka/filters/network/source:kafka_response_parser_lib",
+        "//contrib/kafka/filters/network/source/mesh:inbound_record_lib",
         "//source/common/buffer:buffer_lib",
         ":crc_lib",
-        envoy_external_dep_path("librdkafka"),
-        ":produce_record_extractor_lib",
     ],
 )
 

@@ -36,8 +36,6 @@ using RawKafkaConfig = std::map<std::string, std::string>;
 
 using RdKafkaTopicPartitionRawPtr = RdKafka::TopicPartition*;
 
-using RdKafkaMessagePtr = std::shared_ptr<RdKafka::Message>;
-
 class RichKafkaConsumer : public KafkaConsumer, private Logger::Loggable<Logger::Id::kafka> {
 public:
   // Main constructor.
@@ -55,7 +53,7 @@ public:
 private:
 
   // XXX
-  std::vector<RdKafkaMessagePtr> receiveMessageBatch();
+  std::vector<InboundRecordSharedPtr> receiveMessageBatch();
 
   // XXX
   void pollContinuously();
