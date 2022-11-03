@@ -38,7 +38,7 @@ public:
   bool waitUntilInterest(const std::string& topic, const int32_t timeout_ms) const override;
 
   // StoreCb
-  void receive(RdKafkaMessagePtr message) override;
+  void receive(InboundRecordSharedPtr message) override;
 
   // XXX
   void getRecordsOrRegisterCallback(const RecordCbSharedPtr& callback);
@@ -63,7 +63,7 @@ private:
   std::map<KafkaPartition, std::vector<RecordCbSharedPtr>> partition_to_callbacks_ ABSL_GUARDED_BY(callbacks_mutex_);
 
   mutable absl::Mutex messages_mutex_;
-  std::map<KafkaPartition, std::vector<RdKafkaMessagePtr>> messages_waiting_for_interest_ ABSL_GUARDED_BY(messages_mutex_);
+  std::map<KafkaPartition, std::vector<InboundRecordSharedPtr>> messages_waiting_for_interest_ ABSL_GUARDED_BY(messages_mutex_);
 };
 
 // =============================================================================================================

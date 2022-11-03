@@ -6,17 +6,13 @@
 
 #include "envoy/common/pure.h"
 
-// FIXME
-#include "librdkafka/rdkafkacpp.h"
+#include "contrib/kafka/filters/network/source/mesh/inbound_record.h"
 
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
-
-// FIXME duplicate of _impl.h
-using RdKafkaMessagePtr = std::shared_ptr<RdKafka::Message>;
 
 // Topic name to topic partitions.
 using TopicToPartitionsMap = std::map<std::string, std::vector<int32_t>>;
@@ -35,7 +31,7 @@ public:
 
   // Notify the callback that with a message.
   // @return whether the callback could accept the message
-  virtual Reply receive(RdKafkaMessagePtr message) PURE;
+  virtual Reply receive(InboundRecordSharedPtr message) PURE;
 
   virtual TopicToPartitionsMap interest() const PURE;
 
@@ -51,7 +47,7 @@ class StoreCb {
 public:
   virtual ~StoreCb() = default;
 
-  virtual void receive(RdKafkaMessagePtr message) PURE;
+  virtual void receive(InboundRecordSharedPtr message) PURE;
 
   virtual bool waitUntilInterest(const std::string& topic, const int32_t timeout_ms) const PURE;
 };

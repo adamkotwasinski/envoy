@@ -180,7 +180,7 @@ void Store::getRecordsOrRegisterCallback(const RecordCbSharedPtr& callback) {
   }
 }
 
-void Store::receive(RdKafkaMessagePtr message) { // XXX this api is inefficient, as we acquire lock PER MESSAGE (instead of batch)
+void Store::receive(InboundRecordSharedPtr message) { // XXX this api is inefficient, as we acquire lock PER MESSAGE (instead of batch)
 
   const KafkaPartition kafka_partition = {message->topic_name(), message->partition()};
 
