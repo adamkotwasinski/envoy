@@ -168,6 +168,18 @@ envoy_cc_library(
 )
 
 envoy_cc_library(
+    name = "inbound_record_lib",
+    srcs = [
+    ],
+    hdrs = [
+        "inbound_record.h",
+    ],
+    tags = ["skip_on_windows"],
+    deps = [
+    ],
+)
+
+envoy_cc_library(
     name = "outbound_record_lib",
     srcs = [
     ],
@@ -219,6 +231,7 @@ envoy_cc_library(
     ],
     tags = ["skip_on_windows"],
     deps = [
+        ":inbound_record_lib",
         envoy_external_dep_path("librdkafka"),
     ],
 )
