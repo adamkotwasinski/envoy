@@ -192,6 +192,8 @@ void Store::receive(InboundRecordSharedPtr message) { // XXX this api is ineffic
     absl::MutexLock lock(&callbacks_mutex_);
     auto& callbacks = partition_to_callbacks_[kafka_partition];
 
+    std::vector<RecordCbSharedPtr> satisfied_callbacks = {};
+
     // Typical case: there is some interest in messages for given partition. Notify the callback and remove it.
     for (const auto& callback : callbacks) {
       Reply callback_status = callback->receive(message);
@@ -199,8 +201,7 @@ void Store::receive(InboundRecordSharedPtr message) { // XXX this api is ineffic
         case Reply::ACCEPTED_AND_FINISHED: {
           consumed_by_callback = true;
           // A callback is finally satisfied, it will never want more messages.
-          // XXX ouch ouch ouch removing while iterating over
-          removeCallbackWithoutLocking(callback, partition_to_callbacks_); // Lock was acquired at the beggining of the block.
+          satisfied_callbacks.push_back(callback);
           break;
         }
         case Reply::ACCEPTED_AND_WANT_MORE: {
@@ -216,6 +217,11 @@ void Store::receive(InboundRecordSharedPtr message) { // XXX this api is ineffic
       if (consumed_by_callback) {
         break;
       }
+    }
+
+    for (const auto& callback : satisfied_callbacks) {
+      // Lock was acquired at the beggining of the block.
+      removeCallbackWithoutLocking(callback, partition_to_callbacks_);
     }
   }
 
