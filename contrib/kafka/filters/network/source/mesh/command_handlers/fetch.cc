@@ -79,7 +79,9 @@ void FetchRequestHolder::markFinishedByTimer() {
 // XXX temporary solution only
 constexpr int32_t MINIMAL_MSG_CNT = 3;
 
-// This method is called by a Kafka-consumer thread (not Envoy-worker one).
+// This method is called by:
+// - Kafka-consumer thread - when have the records delivered,
+// - dispatcher thread  - when we start processing and check whether anything was cached.
 Reply FetchRequestHolder::receive(InboundRecordSharedPtr message) {
   absl::MutexLock lock(&state_mutex_);
   if (!finished_) {
