@@ -45,11 +45,18 @@ std::string stringify(const TopicToPartitionsMap& arg) {
 }
 
 SharedConsumerManagerImpl::SharedConsumerManagerImpl(
-    const UpstreamKafkaConfiguration& configuration, Thread::ThreadFactory& thread_factory)
+    const UpstreamKafkaConfiguration& configuration, Thread::ThreadFactory& thread_factory, Server::ServerLifecycleNotifier& lifecycle_notifier)
     : configuration_{configuration}, thread_factory_{thread_factory} {
+
+    auto shutdown_callback = [this](Event::PostCb post_cb) {
+      ENVOY_LOG(info, "Shutting down (invoked by callback)");
+      doShutdown();
+    };
+    shutdown_callback_handle_ = lifecycle_notifier.registerCallback(Server::ServerLifecycleNotifier::Stage::ShutdownExit, shutdown_callback);
 }
 
 SharedConsumerManagerImpl::~SharedConsumerManagerImpl() {
+  doShutdown();
 }
 
 void SharedConsumerManagerImpl::getRecordsOrRegisterCallback(const RecordCbSharedPtr& callback) {
@@ -92,6 +99,14 @@ KafkaConsumer& SharedConsumerManagerImpl::registerNewConsumer(const std::string&
 
 void SharedConsumerManagerImpl::removeCallback(const RecordCbSharedPtr& callback) {
   store_.removeCallback(callback);
+}
+
+void SharedConsumerManagerImpl::doShutdown() {
+  ENVOY_LOG(info, "Shutting down consumer manager");
+  absl::MutexLock lock(&consumers_mutex_);
+  ENVOY_LOG(info, "There are {} consumers to close", topic_to_consumer_.size());
+  topic_to_consumer_.clear();
+  ENVOY_LOG(info, "Consumers have been shut down");
 }
 
 // =============== STORE ==========================================================================================
