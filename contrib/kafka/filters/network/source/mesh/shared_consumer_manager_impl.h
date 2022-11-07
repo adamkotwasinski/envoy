@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "envoy/thread/thread.h"
+#include "envoy/server/lifecycle_notifier.h"
 
 #include "source/common/common/logger.h"
 
@@ -76,7 +77,7 @@ private:
 class SharedConsumerManagerImpl : public SharedConsumerManager,
                                   private Logger::Loggable<Logger::Id::kafka> {
 public:
-  SharedConsumerManagerImpl(const UpstreamKafkaConfiguration& configuration, Thread::ThreadFactory& thread_factory);
+  SharedConsumerManagerImpl(const UpstreamKafkaConfiguration& configuration, Thread::ThreadFactory& thread_factory, Server::ServerLifecycleNotifier& lifecycle_notifier);
 
   ~SharedConsumerManagerImpl() override;
 
@@ -92,6 +93,8 @@ private:
   // Mutates 'topic_to_consumer_'.
   KafkaConsumer& registerNewConsumer(const std::string& topic);
 
+  void doShutdown();
+
   Store store_;
 
   const UpstreamKafkaConfiguration& configuration_;
@@ -99,6 +102,8 @@ private:
 
   mutable absl::Mutex consumers_mutex_;
   std::map<std::string, KafkaConsumerPtr> topic_to_consumer_ ABSL_GUARDED_BY(consumers_mutex_);
+
+  Server::ServerLifecycleNotifier::HandlePtr shutdown_callback_handle_;
 };
 
 // =============================================================================================================

@@ -124,6 +124,7 @@ envoy_cc_library(
     hdrs = ["shared_consumer_manager.h"],
     tags = ["skip_on_windows"],
     deps = [
+        "//envoy/server:lifecycle_notifier_interface",
         ":upstream_config_lib",
         ":upstream_kafka_consumer_lib",
     ],

@@ -10,6 +10,7 @@
 #include <iostream>
 
 #ifndef WIN32
+#include "envoy/server/lifecycle_notifier.h"
 #include "contrib/kafka/filters/network/source/mesh/fetch_purger.h"
 #include "contrib/kafka/filters/network/source/mesh/fetch_purger_impl.h"
 #include "contrib/kafka/filters/network/source/mesh/shared_consumer_manager.h"
@@ -44,10 +45,12 @@ Network::FilterFactoryCb KafkaMeshConfigFactory::createFilterFactoryFromProtoTyp
       std::make_shared<UpstreamKafkaFacadeImpl>(*configuration, context.threadLocal(),
                                                 context.api().threadFactory());
 
+  Server::ServerLifecycleNotifier& lifecycle_notifier = context.getServerFactoryContext().lifecycleNotifier(); // We need this to hook into Envoy lifecycle.
+
   // Manager for consumers shared across downstream connections
   // (connects us to upstream Kafka clusters).
   const SharedConsumerManagerSharedPtr shared_consumer_manager =
-      std::make_shared<SharedConsumerManagerImpl>(*configuration, context.api().threadFactory());
+      std::make_shared<SharedConsumerManagerImpl>(*configuration, context.api().threadFactory(), lifecycle_notifier);
 
   // Manages fetch request timeouts.
   const FetchPurgerSharedPtr fetch_purger = std::make_shared<FetchPurgerImpl>(context.threadLocal());
