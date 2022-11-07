@@ -97,12 +97,8 @@ void KafkaMeshFilter::onRequestReadyForAnswer() {
   }
 }
 
-void KafkaMeshFilter::onRequestReadyForAnswerThruDispatcher() {
-  auto& dispatcher = read_filter_callbacks_->connection().dispatcher();
-  const Event::PostCb callback = [this]() -> void {
-    onRequestReadyForAnswer();
-  };
-  dispatcher.post(callback);
+Event::Dispatcher& KafkaMeshFilter::dispatcher() {
+  return read_filter_callbacks_->connection().dispatcher();
 }
 
 void KafkaMeshFilter::abandonAllInFlightRequests() {
