@@ -79,7 +79,7 @@ public:
   // AbstractRequestListener
   void onRequest(InFlightRequestSharedPtr request) override;
   void onRequestReadyForAnswer() override;
-  void onRequestReadyForAnswerThruDispatcher() override;
+  Event::Dispatcher& dispatcher() override;
 
   std::list<InFlightRequestSharedPtr>& getRequestsInFlightForTest();
 

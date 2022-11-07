@@ -8,6 +8,7 @@
 #include "contrib/kafka/filters/network/source/mesh/command_handlers/fetch_record_converter.h"
 #include "contrib/kafka/filters/network/source/mesh/fetch_purger.h"
 
+#include "envoy/event/dispatcher.h"
 #include "envoy/event/timer.h"
 
 #include "absl/synchronization/mutex.h"
@@ -71,8 +72,9 @@ private:
   // The messages to send downstream.
   std::map<KafkaPartition, std::vector<InboundRecordSharedPtr>> messages_ ABSL_GUARDED_BY(state_mutex_);
 
-  // Timeout timer.
+  // Timeout timer (invalidated when request is finished).
   Event::TimerPtr timer_;
+
   // Translates librdkafka objects into bytes to be sent downstream.
   const FetchResponsePayloadProcessor processor_;
 };

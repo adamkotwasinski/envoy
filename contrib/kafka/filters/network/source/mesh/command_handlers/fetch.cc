@@ -18,6 +18,9 @@ FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
                                        const std::shared_ptr<Request<FetchRequest>> request)
     : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, fetch_purger_{fetch_purger}, request_{request} {}
 
+// XXX (adam.kotwasinski) This should be made configurable in future.
+constexpr uint32_t FETCH_TIMEOUT_MS = 10000;
+
 void FetchRequestHolder::startProcessing() {
   const TopicToPartitionsMap requested_topics = interest();
 
@@ -36,13 +39,11 @@ void FetchRequestHolder::startProcessing() {
   const auto self_reference = shared_from_this();
   consumer_manager_.getRecordsOrRegisterCallback(self_reference);
 
-  // XXX 1 Make this conditional in finished?
-  // XXX 2 replace this -> self_reference ??? or just take a look into TimerCB dtor
   Event::TimerCb callback = [this]() -> void {
     // Fun fact: if the request is degenerate (no partitions requested), this will make it be processed.
     markFinishedByTimer();
   };
-  timer_ = fetch_purger_.track(callback, 1234); // XXX 1234!
+  timer_ = fetch_purger_.track(callback, FETCH_TIMEOUT_MS);
 }
 
 TopicToPartitionsMap FetchRequestHolder::interest() const {
@@ -61,11 +62,18 @@ TopicToPartitionsMap FetchRequestHolder::interest() const {
 // This method is called by a Envoy-worker thread.
 void FetchRequestHolder::markFinishedByTimer() {
   ENVOY_LOG(info, "Fetch request {} timed out", debugId());
+  bool doCleanup = false;
   {
     absl::MutexLock lock(&state_mutex_);
-    finished_ = true;
+    timer_ = nullptr;
+    if (!finished_) {
+      finished_ = true;
+      doCleanup = true;
+    }
   }
-  cleanup(true);
+  if (doCleanup) {
+    cleanup(true);
+  }
 }
 
 // XXX temporary solution only
@@ -115,12 +123,14 @@ void FetchRequestHolder::cleanup(bool unregister) {
   // Our request is ready and can be sent downstream.
   // However, the caller here could be a Kafka-consumer worker thread (not an Envoy worker one),
   // so we need to use dispatcher to notify the filter that we are finished.
-  // Also, our timer could have kicked off after the filter has been destroyed, so we need to keep a valid reference.
-  if (filter_active_) { // XXX this is thread-unsafe (filter's dtor does not run in the same thread as this method)
-    filter_.onRequestReadyForAnswerThruDispatcher();
-    // XXX sprawdz ktore watki moga to wywolywac:
-    // albo timer (co jest ok), albo consumer-worker (co NIE jest ok)
-  }
+  auto notifyCallback = [this]() -> void {
+    timer_ = nullptr;
+    filter_.onRequestReadyForAnswer();
+  };
+  // Impl note: usually this will be invoked by non-Envoy thread,
+  // so let's not optimize that this might be invoked by dispatcher callback.
+  Event::Dispatcher& dispatcher = filter_.dispatcher();
+  dispatcher.post(notifyCallback);
 }
 
 bool FetchRequestHolder::finished() const { 
