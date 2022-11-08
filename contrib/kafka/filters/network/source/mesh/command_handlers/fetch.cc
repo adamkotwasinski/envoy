@@ -143,6 +143,17 @@ bool FetchRequestHolder::finished() const {
   return finished_;
 }
 
+void FetchRequestHolder::abandon() {
+  // We remove the timeout-callback and unregister this request so no deliveries happen to it.
+  timer_ = nullptr;
+  const auto self_reference = shared_from_this();
+  consumer_manager_.removeCallback(self_reference);
+  BaseInFlightRequest::abandon();
+  // XXX (adam.kotwasinski) Might want to "push-back" records that are already in this request.
+  // Replication path: make a Fetch that wants 10 records, provide 8, kill connection.
+  // Part 2: might escalate even higher, what if we finish okay, but cannot send serialized form?
+}
+
 AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
   const auto& header = request_->request_header_;
   const ResponseMetadata metadata = {header.api_key_, header.api_version_, header.correlation_id_};
