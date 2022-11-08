@@ -16,10 +16,10 @@ FetchRequestHolder::FetchRequestHolder(AbstractRequestListener& filter,
                                        SharedConsumerManager& consumer_manager,
                                        FetchPurger& fetch_purger,
                                        const std::shared_ptr<Request<FetchRequest>> request)
-    : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, fetch_purger_{fetch_purger}, request_{request} {}
+    : BaseInFlightRequest{filter}, consumer_manager_{consumer_manager}, fetch_purger_{fetch_purger}, request_{request}, dispatcher_{filter.dispatcher()} {}
 
 // XXX (adam.kotwasinski) This should be made configurable in future.
-constexpr uint32_t FETCH_TIMEOUT_MS = 10000;
+constexpr uint32_t FETCH_TIMEOUT_MS = 5000;
 
 void FetchRequestHolder::startProcessing() {
   const TopicToPartitionsMap requested_topics = interest();
@@ -39,8 +39,10 @@ void FetchRequestHolder::startProcessing() {
   const auto self_reference = shared_from_this();
   consumer_manager_.getRecordsOrRegisterCallback(self_reference);
 
+  // Event::TimerCb callback = [self_reference]() -> void {
   Event::TimerCb callback = [this]() -> void {
     // Fun fact: if the request is degenerate (no partitions requested), this will make it be processed.
+    // self_reference->markFinishedByTimer();
     markFinishedByTimer();
   };
   timer_ = fetch_purger_.track(callback, FETCH_TIMEOUT_MS);
@@ -117,6 +119,7 @@ std::string FetchRequestHolder::debugId() const {
 }
 
 void FetchRequestHolder::cleanup(bool unregister) {
+  ENVOY_LOG(info, "Cleanup starting for {}", debugId());
   if (unregister) {
     const auto self_reference = shared_from_this();
     consumer_manager_.removeCallback(self_reference);
@@ -131,8 +134,8 @@ void FetchRequestHolder::cleanup(bool unregister) {
   };
   // Impl note: usually this will be invoked by non-Envoy thread,
   // so let's not optimize that this might be invoked by dispatcher callback.
-  Event::Dispatcher& dispatcher = filter_.dispatcher();
-  dispatcher.post(notifyCallback);
+  dispatcher_.post(notifyCallback);
+  ENVOY_LOG(info, "Cleanup finished for {}", debugId());
 }
 
 bool FetchRequestHolder::finished() const { 
@@ -148,15 +151,8 @@ AbstractResponseSharedPtr FetchRequestHolder::computeAnswer() const {
   std::vector<FetchableTopicResponse> responses;
   {
     absl::MutexLock lock(&state_mutex_);
-
-    int cnt = 0;
-    for (const auto& e : messages_) {
-      cnt += e.second.size();
-    }
-    ENVOY_LOG(info, "Response to Fetch request {} has {} records, finished = {}", debugId(), cnt, finished_);
     responses = processor_.transform(messages_);
   }
-
   const FetchResponse data = {throttle_time_ms, responses};
   return std::make_shared<Response<FetchResponse>>(metadata, data);
 }
