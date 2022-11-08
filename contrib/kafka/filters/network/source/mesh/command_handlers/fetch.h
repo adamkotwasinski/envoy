@@ -30,19 +30,14 @@ public:
 
   bool finished() const override;
 
+  void abandon() override;
+
   AbstractResponseSharedPtr computeAnswer() const override;
 
   // Invoked by timer as this requests's time runs out.
   // It is possible that this request has already been finished (there was data to send),
   // then this method does nothing.
   void markFinishedByTimer();
-
-  // XXX
-  // Whether the given fetch request should be sent downstream.
-  // Typical cases are:
-  // - it has enough records (meeting request's minimal requirements),
-  // - enough time has passed.
-  // bool isEligibleForSendingDownstream() const;
 
   // RecordCb
   Reply receive(InboundRecordSharedPtr message) override;
