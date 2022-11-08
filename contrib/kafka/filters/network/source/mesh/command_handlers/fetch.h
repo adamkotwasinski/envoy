@@ -72,6 +72,8 @@ private:
   // The messages to send downstream.
   std::map<KafkaPartition, std::vector<InboundRecordSharedPtr>> messages_ ABSL_GUARDED_BY(state_mutex_);
 
+  // Filter's dispatcher.
+  Event::Dispatcher& dispatcher_;
   // Timeout timer (invalidated when request is finished).
   Event::TimerPtr timer_;
 
