@@ -67,13 +67,14 @@ private:
   std::map<KafkaPartition, std::vector<InboundRecordSharedPtr>> messages_waiting_for_interest_ ABSL_GUARDED_BY(messages_mutex_);
 };
 
+using StorePtr = std::unique_ptr<Store>;
+
 // =============================================================================================================
 
 /**
  * Implements SCM interface by maintaining a collection of Kafka consumers on per-topic basis.
  * Maintains a message cache for messages that had no interest but might be requested later.
  */
-// XXX the whole thing needs to be thread-safe
 class SharedConsumerManagerImpl : public SharedConsumerManager,
                                   private Logger::Loggable<Logger::Id::kafka> {
 public:
@@ -93,9 +94,11 @@ private:
   // Mutates 'topic_to_consumer_'.
   KafkaConsumer& registerNewConsumer(const std::string& topic);
 
+  // Disables this instance (so it can no longer be used by requests).
+  // After this method finishes, no requests (RecordCbSharedPtr) are ever held by this object (what means they are held only by originating filter).
   void doShutdown();
 
-  Store store_;
+  StorePtr store_{std::make_unique<Store>()};
 
   const UpstreamKafkaConfiguration& configuration_;
   Thread::ThreadFactory& thread_factory_;
@@ -103,7 +106,10 @@ private:
   mutable absl::Mutex consumers_mutex_;
   std::map<std::string, KafkaConsumerPtr> topic_to_consumer_ ABSL_GUARDED_BY(consumers_mutex_);
 
+  // Hooks 'doShutdown'.
   Server::ServerLifecycleNotifier::HandlePtr shutdown_callback_handle_;
+  mutable absl::Mutex active_mutex_;
+  bool active_ ABSL_GUARDED_BY(active_mutex_) = true;
 };
 
 // =============================================================================================================

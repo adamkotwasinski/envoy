@@ -49,7 +49,7 @@ SharedConsumerManagerImpl::SharedConsumerManagerImpl(
     : configuration_{configuration}, thread_factory_{thread_factory} {
 
     auto shutdown_callback = [this](Event::PostCb post_cb) {
-      ENVOY_LOG(info, "Shutting down (invoked by callback)");
+      ENVOY_LOG(info, "Shutting down (invoked by server shutdown)");
       doShutdown();
     };
     shutdown_callback_handle_ = lifecycle_notifier.registerCallback(Server::ServerLifecycleNotifier::Stage::ShutdownExit, shutdown_callback);
@@ -60,6 +60,12 @@ SharedConsumerManagerImpl::~SharedConsumerManagerImpl() {
 }
 
 void SharedConsumerManagerImpl::getRecordsOrRegisterCallback(const RecordCbSharedPtr& callback) {
+  // If we are shutdown, there is nothing to do.
+  absl::ReaderMutexLock lock(&active_mutex_);
+  if (!active_) {
+    return;
+  }
+
   // For every fetch topic, figure out the upstream cluster,
   // create consumer if needed ...
   const TopicToPartitionsMap interest = callback->interest(); 
@@ -67,8 +73,9 @@ void SharedConsumerManagerImpl::getRecordsOrRegisterCallback(const RecordCbShare
     const std::string& topic = fetch.first;
     getOrCreateConsumer(topic); // XXX this method should not be named 'get...'
   }
+
   // ... and start processing.
-  store_.getRecordsOrRegisterCallback(callback);
+  store_->getRecordsOrRegisterCallback(callback);
 }
 
 KafkaConsumer& SharedConsumerManagerImpl::getOrCreateConsumer(const std::string& topic) {
@@ -89,7 +96,7 @@ KafkaConsumer& SharedConsumerManagerImpl::registerNewConsumer(const std::string&
   }
   // Create the consumer and register it.
   KafkaConsumerPtr new_consumer =
-      std::make_unique<RichKafkaConsumer>(store_, thread_factory_, topic, cluster_config->partition_count_,
+      std::make_unique<RichKafkaConsumer>(*store_, thread_factory_, topic, cluster_config->partition_count_,
                                           cluster_config->upstream_consumer_properties_);
   ENVOY_LOG(info, "Registering new Kafka consumer for topic [{}], consuming from cluster [{}]",
             topic, cluster_config->name_);
@@ -98,15 +105,26 @@ KafkaConsumer& SharedConsumerManagerImpl::registerNewConsumer(const std::string&
 }
 
 void SharedConsumerManagerImpl::removeCallback(const RecordCbSharedPtr& callback) {
-  store_.removeCallback(callback);
+  absl::ReaderMutexLock lock(&active_mutex_);
+  // If we are shut down, the store is empty, so nothing to do.
+  if (!active_) {
+    return;
+  }
+
+  // Real work - let's remove the callback.
+  store_->removeCallback(callback);
 }
 
 void SharedConsumerManagerImpl::doShutdown() {
   ENVOY_LOG(info, "Shutting down consumer manager");
-  absl::MutexLock lock(&consumers_mutex_);
+  absl::WriterMutexLock lock(&active_mutex_);
+  active_ = false;
+  absl::MutexLock consumers_lock(&consumers_mutex_);
   ENVOY_LOG(info, "There are {} consumers to close", topic_to_consumer_.size());
   topic_to_consumer_.clear();
   ENVOY_LOG(info, "Consumers have been shut down");
+  store_ = nullptr;
+  ENVOY_LOG(info, "Data stored has been erased");
 }
 
 // =============== STORE ==========================================================================================
