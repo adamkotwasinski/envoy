@@ -8,7 +8,7 @@
 #include "envoy/thread/thread.h"
 
 #include "contrib/kafka/filters/network/source/mesh/upstream_kafka_consumer.h"
-#include "librdkafka/rdkafkacpp.h"
+#include "contrib/kafka/filters/network/source/mesh/librdkafka_utils.h"
 
 namespace Envoy {
 namespace Extensions {
@@ -45,7 +45,7 @@ public:
   // Visible for testing (allows injection of LibRdKafkaUtils2).
   RichKafkaConsumer(StoreCb& store_cb, Thread::ThreadFactory& thread_factory, const std::string& topic,
                     int32_t partition_count, const RawKafkaConfig& configuration,
-                    const LibRdKafkaUtils2& utils);
+                    const LibRdKafkaUtils& utils);
 
   // More complex than usual - closes the real Kafka consumer.
   ~RichKafkaConsumer() override;

@@ -1,44 +1,25 @@
 #include "contrib/kafka/filters/network/source/mesh/upstream_kafka_consumer_impl.h"
 
+#include "contrib/kafka/filters/network/source/mesh/librdkafka_utils_impl.h"
+
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
 
-class LibRdKafkaUtils2Impl : public LibRdKafkaUtils2 {
-
-  // LibRdKafkaUtils2
-  RdKafka::Conf::ConfResult setConfProperty(RdKafka::Conf& conf, const std::string& name,
-                                            const std::string& value,
-                                            std::string& errstr) const override {
-    return conf.set(name, value, errstr);
-  }
-
-  // LibRdKafkaUtils2
-  std::unique_ptr<RdKafka::KafkaConsumer> createConsumer(RdKafka::Conf* conf,
-                                                         std::string& errstr) const override {
-    return std::unique_ptr<RdKafka::KafkaConsumer>(RdKafka::KafkaConsumer::create(conf, errstr));
-  }
-
-public:
-  static const LibRdKafkaUtils2& getDefaultInstance() {
-    CONSTRUCT_ON_FIRST_USE(LibRdKafkaUtils2Impl);
-  }
-};
-
 RichKafkaConsumer::RichKafkaConsumer(StoreCb& store_cb,
                                      Thread::ThreadFactory& thread_factory,
                                      const std::string& topic, int32_t partition_count,
                                      const RawKafkaConfig& configuration)
     : RichKafkaConsumer(store_cb, thread_factory, topic, partition_count, configuration,
-                        LibRdKafkaUtils2Impl::getDefaultInstance()){};
+                        LibRdKafkaUtilsImpl::getDefaultInstance()){};
 
 RichKafkaConsumer::RichKafkaConsumer(StoreCb& store_cb,
                                      Thread::ThreadFactory& thread_factory,
                                      const std::string& topic, int32_t partition_count,
                                      const RawKafkaConfig& configuration,
-                                     const LibRdKafkaUtils2& utils)
+                                     const LibRdKafkaUtils& utils)
     : store_cb_{store_cb}, topic_{topic} {
 
   // Create consumer configuration object.
