@@ -31,13 +31,18 @@ public:
 /**
  * Proper implementation.
  */
-class FetchRecordConverterImpl : public FetchRecordConverter {
+class FetchRecordConverterImpl : public FetchRecordConverter,
+                                 private Logger::Loggable<Logger::Id::kafka> {
 public:
   // FetchRecordConverter
   std::vector<FetchableTopicResponse> convert(const InboundRecordsMap& arg) const override;
 
   // Default singleton accessor.
   static const FetchRecordConverter& getDefaultInstance();
+
+private:
+  void print(const Bytes& arg, const std::string ctx = "arg") const;
+  void append(Bytes& out, const InboundRecordSharedPtr& ptr) const;
 };
 
 } // namespace Mesh
