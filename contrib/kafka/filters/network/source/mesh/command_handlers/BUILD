@@ -74,9 +74,25 @@ envoy_cc_library(
     ],
     tags = ["skip_on_windows"],
     deps = [
+        ":crc_lib",
         "//contrib/kafka/filters/network/source:kafka_response_parser_lib",
         "//contrib/kafka/filters/network/source:serialization_lib",
         "//contrib/kafka/filters/network/source/mesh:inbound_record_lib",
+        "//source/common/buffer:buffer_lib",
+        "//source/common/common:minimal_logger_lib",
+    ],
+)
+
+envoy_cc_library(
+    name = "crc_lib",
+    srcs = [
+        "crc.c",
+    ],
+    hdrs = [
+        "crc.h",
+    ],
+    tags = ["skip_on_windows"],
+    deps = [
     ],
 )
 

@@ -1,5 +1,8 @@
 #include "contrib/kafka/filters/network/source/mesh/command_handlers/fetch_record_converter.h"
 
+#include "source/common/buffer/buffer_impl.h"
+
+#include "contrib/kafka/filters/network/source/mesh/command_handlers/crc.h"
 #include "contrib/kafka/filters/network/source/serialization.h"
 
 namespace Envoy {
@@ -7,10 +10,6 @@ namespace Extensions {
 namespace NetworkFilters {
 namespace Kafka {
 namespace Mesh {
-
-const FetchRecordConverter& FetchRecordConverterImpl::getDefaultInstance() {
-  CONSTRUCT_ON_FIRST_USE(FetchRecordConverterImpl);
-}
 
 std::vector<FetchableTopicResponse>
 FetchRecordConverterImpl::convert(const InboundRecordsMap& arg) const {
@@ -159,36 +158,21 @@ void FetchRecordConverterImpl::appendRecord(const InboundRecord& record, Bytes& 
   out.insert(out.end(), tmp.begin(), tmp.end());
 }
 
-// XXX (adam.kotwasinski) Instead of computing it naively, either link against librdkafka's
-// implementation or generate it.
-// https://github.com/confluentinc/librdkafka/blob/v1.8.0/src/crc32c.c#L1
-uint32_t FetchRecordConverterImpl::computeCrc32c(const unsigned char* data, const size_t len) {
-  uint32_t crc = 0xFFFFFFFF;
-  for (size_t i = 0; i < len; i++) {
-    char ch = data[i];
-    for (size_t j = 0; j < 8; j++) {
-      uint32_t b = (ch ^ crc) & 1;
-      crc >>= 1;
-      if (b) {
-        crc = crc ^ 0x82F63B78;
-      }
-      ch >>= 1;
-    }
-  }
-  return ~crc;
-}
-
-uint32_t FetchRecordConverterImpl::computeCrc32cForTest(const unsigned char* data,
-                                                        const size_t len) {
-  return computeCrc32c(data, len);
-}
-
 Bytes FetchRecordConverterImpl::renderCrc32c(const unsigned char* data, const size_t len) const {
-  uint32_t crc = htobe32(computeCrc32c(data, len));
+  kafka_crc32c_t crc;
+  crc = kafka_crc32c_init();
+  crc = kafka_crc32c_update(crc, data, len);
+  crc = kafka_crc32c_finalize(crc);
+  crc = htobe32(crc);
+
   Bytes result;
   unsigned char* raw = reinterpret_cast<unsigned char*>(&crc);
   result.insert(result.end(), raw, raw + sizeof(crc));
   return result;
+}
+
+const FetchRecordConverter& FetchRecordConverterImpl::getDefaultInstance() {
+  CONSTRUCT_ON_FIRST_USE(FetchRecordConverterImpl);
 }
 
 } // namespace Mesh

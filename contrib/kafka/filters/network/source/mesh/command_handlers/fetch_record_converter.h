@@ -53,9 +53,6 @@ private:
 
   // Helper function: render CRC32C bytes from given input.
   Bytes renderCrc32c(const unsigned char* data, const size_t len) const;
-
-  // Helper function: compute CRC32C.
-  static uint32_t computeCrc32c(const unsigned char* data, const size_t len);
 };
 
 } // namespace Mesh
