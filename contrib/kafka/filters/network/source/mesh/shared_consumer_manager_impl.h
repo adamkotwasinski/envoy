@@ -3,6 +3,7 @@
 #include <map>
 #include <vector>
 
+#include "envoy/server/lifecycle_notifier.h"
 #include "envoy/thread/thread.h"
 
 #include "source/common/common/logger.h"
@@ -93,12 +94,16 @@ class SharedConsumerManagerImpl : public SharedConsumerManager,
 public:
   // Main constructor.
   SharedConsumerManagerImpl(const UpstreamKafkaConfiguration& configuration,
-                            Thread::ThreadFactory& thread_factory);
+                            Thread::ThreadFactory& thread_factory,
+                            Server::ServerLifecycleNotifier& lifecycle_notifier);
 
   // Visible for testing.
   SharedConsumerManagerImpl(const UpstreamKafkaConfiguration& configuration,
                             Thread::ThreadFactory& thread_factory,
+                            Server::ServerLifecycleNotifier& lifecycle_notifier,
                             const KafkaConsumerFactory& consumer_factory);
+
+  ~SharedConsumerManagerImpl() override;
 
   /**
    * Registers a callback that is interested in messages for particular partitions.
@@ -129,6 +134,11 @@ private:
 
   mutable absl::Mutex consumers_mutex_;
   std::map<std::string, KafkaConsumerPtr> topic_to_consumer_ ABSL_GUARDED_BY(consumers_mutex_);
+
+  // Hooks 'doShutdown'.
+  Server::ServerLifecycleNotifier::HandlePtr shutdown_callback_handle_;
+  mutable absl::Mutex active_mutex_;
+  bool active_ ABSL_GUARDED_BY(active_mutex_) = true;
 };
 
 } // namespace Mesh

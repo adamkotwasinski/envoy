@@ -72,17 +72,35 @@ const KafkaConsumerFactory& KafkaConsumerFactoryImpl::getDefaultInstance() {
 // SharedConsumerManagerImpl
 
 SharedConsumerManagerImpl::SharedConsumerManagerImpl(
-    const UpstreamKafkaConfiguration& configuration, Thread::ThreadFactory& thread_factory)
-    : SharedConsumerManagerImpl{configuration, thread_factory,
+    const UpstreamKafkaConfiguration& configuration, Thread::ThreadFactory& thread_factory,
+    Server::ServerLifecycleNotifier& lifecycle_notifier)
+    : SharedConsumerManagerImpl{configuration, thread_factory, lifecycle_notifier,
                                 KafkaConsumerFactoryImpl::getDefaultInstance()} {}
 
 SharedConsumerManagerImpl::SharedConsumerManagerImpl(
     const UpstreamKafkaConfiguration& configuration, Thread::ThreadFactory& thread_factory,
+    Server::ServerLifecycleNotifier& lifecycle_notifier,
     const KafkaConsumerFactory& consumer_factory)
     : distributor_{std::make_unique<RecordDistributor>()}, configuration_{configuration},
-      thread_factory_{thread_factory}, consumer_factory_{consumer_factory} {}
+      thread_factory_{thread_factory}, consumer_factory_{consumer_factory} {
+
+  auto shutdown_callback = [this](Event::PostCb) {
+    ENVOY_LOG(info, "Shutting down (invoked by server shutdown)");
+    doShutdown();
+  };
+  shutdown_callback_handle_ = lifecycle_notifier.registerCallback(
+      Server::ServerLifecycleNotifier::Stage::ShutdownExit, shutdown_callback);
+}
+
+SharedConsumerManagerImpl::~SharedConsumerManagerImpl() { doShutdown(); }
 
 void SharedConsumerManagerImpl::getRecordsOrRegisterCallback(const RecordCbSharedPtr& callback) {
+  // If we are shutdown, there is nothing to do.
+  absl::ReaderMutexLock lock(&active_mutex_);
+  if (!active_) {
+    return;
+  }
+
   // For every fetch topic, figure out the upstream cluster,
   // create consumer if needed ...
   const TopicToPartitionsMap interest = callback->interest();
@@ -125,8 +143,26 @@ void SharedConsumerManagerImpl::registerNewConsumer(const std::string& topic) {
 }
 
 void SharedConsumerManagerImpl::removeCallback(const RecordCbSharedPtr& callback) {
+  absl::ReaderMutexLock lock(&active_mutex_);
+  // If we are shut down, the store is empty, so nothing to do.
+  if (!active_) {
+    return;
+  }
+
   // Real work - let's remove the callback.
   distributor_->removeCallback(callback);
+}
+
+void SharedConsumerManagerImpl::doShutdown() {
+  ENVOY_LOG(info, "Shutting down consumer manager");
+  absl::WriterMutexLock lock(&active_mutex_);
+  active_ = false;
+  absl::MutexLock consumers_lock(&consumers_mutex_);
+  ENVOY_LOG(info, "There are {} consumers to close", topic_to_consumer_.size());
+  topic_to_consumer_.clear();
+  ENVOY_LOG(info, "Consumers have been shut down");
+  distributor_ = nullptr;
+  ENVOY_LOG(info, "Data stored has been erased");
 }
 
 size_t SharedConsumerManagerImpl::getConsumerCountForTest() const {
