@@ -31,6 +31,12 @@ public:
   MOCK_METHOD((std::pair<std::string, int32_t>), getAdvertisedAddress, (), (const));
 };
 
+class MockServerLifecycleNotifier : public Server::ServerLifecycleNotifier {
+public:
+  MOCK_METHOD(HandlePtr, registerCallback, (Stage, StageCallback));
+  MOCK_METHOD(HandlePtr, registerCallback, (Stage, StageCallbackWithCompletion));
+};
+
 class MockKafkaConsumerFactory : public KafkaConsumerFactory {
 public:
   MOCK_METHOD(KafkaConsumerPtr, createConsumer,
@@ -43,11 +49,12 @@ class SharedConsumerManagerTest : public testing::Test {
 protected:
   MockThreadFactory thread_factory_;
   MockUpstreamKafkaConfiguration configuration_;
+  NiceMock<MockServerLifecycleNotifier> lifecycle_notifier_;
   MockKafkaConsumerFactory consumer_factory_;
 
   std::unique_ptr<SharedConsumerManagerImpl> makeTestee() {
     return std::make_unique<SharedConsumerManagerImpl>(configuration_, thread_factory_,
-                                                       consumer_factory_);
+                                                       lifecycle_notifier_, consumer_factory_);
   }
 };
 
