@@ -80,6 +80,8 @@ public:
   void onRequestReadyForAnswer() override;
   Event::Dispatcher& dispatcher() override;
 
+  std::string debugId() const override;
+
   std::list<InFlightRequestSharedPtr>& getRequestsInFlightForTest();
 
 private:
@@ -88,6 +90,8 @@ private:
   // to mark related requests as abandoned, so they do not attempt to reference this filter anymore.
   // Impl note: this is similar to what Redis filter does.
   void abandonAllInFlightRequests();
+
+  const int32_t filter_id_;
 
   const RequestDecoderSharedPtr request_decoder_;
 
