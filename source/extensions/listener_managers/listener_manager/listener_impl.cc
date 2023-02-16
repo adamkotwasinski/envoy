@@ -1122,7 +1122,7 @@ bool ListenerImpl::getReusePortOrDefault(Server::Instance& server,
   if (initial_reuse_port_value && socket_type == Network::Socket::Type::Stream) {
     // reuse_port is the default on Linux for TCP. On other platforms even if set it is disabled
     // and the user is warned. For UDP it's always the default even if not effective.
-    ENVOY_LOG(warn,
+    ENVOY_LOG(trace,
               "reuse_port was configured for TCP listener '{}' and is being force disabled because "
               "Envoy is not running on Linux. See the documentation for more information.",
               config.name());

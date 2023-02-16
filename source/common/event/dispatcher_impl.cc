@@ -86,7 +86,7 @@ DispatcherImpl::DispatcherImpl(const std::string& name, Thread::ThreadFactory& t
 }
 
 DispatcherImpl::~DispatcherImpl() {
-  ENVOY_LOG(debug, "destroying dispatcher {}", name_);
+  ENVOY_LOG(info, "Destroying dispatcher [{}]", name_);
   FatalErrorHandler::removeFatalErrorHandler(*this);
   // TODO(lambdai): Resolve https://github.com/envoyproxy/envoy/issues/15072 and enable
   // ASSERT(deletable_in_dispatcher_thread_.empty())
@@ -289,6 +289,7 @@ void DispatcherImpl::run(RunType type) {
   // event_base_once() before some other event, the other event might get called first.
   runPostCallbacks();
   base_scheduler_.run(type);
+  ENVOY_LOG(info, "RUN FINISHED {}", name_);
 }
 
 MonotonicTime DispatcherImpl::approximateMonotonicTime() const {

@@ -33,7 +33,6 @@ void WipCounterBase::setWipCounter(Stats::Counter& wip_counter) {
 }
 
 void WipCounterBase::onWorkInProgressCommon(absl::string_view description) {
-  ENVOY_LOG_MISC(warn, "{}", description);
   if (wip_counter_ != nullptr) {
     wip_counter_->inc();
   } else {
