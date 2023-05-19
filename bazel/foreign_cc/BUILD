@@ -63,7 +63,7 @@ configure_make(
     ],
     tags = ["skip_on_windows"],
     targets = [
-        "ARFLAGS='' libs install-subdirs",
+        " -version && unset MAKE && /usr/bin/make ARFLAGS='' libs install-subdirs",
     ],
     alwayslink = True,
 )
