@@ -39,17 +39,17 @@ index 30d64be2..ae7ec875 100644
  TARGET_AR= $(CROSS)ar rcus
 -TARGET_STRIP= $(CROSS)strip
 +TARGET_STRIP?= $(CROSS)strip
- 
+
  TARGET_LIBPATH= $(or $(PREFIX),/usr/local)/$(or $(MULTILIB),lib)
  TARGET_SONAME= libluajit-$(ABIVER).so.$(MAJVER)
 @@ -598,7 +598,7 @@ endif
- 
+
  Q= @
  E= @echo
 -#Q=
 +Q=
  #E= @:
- 
+
  ##############################################################################
 diff --git a/src/msvcbuild.bat b/src/msvcbuild.bat
 index d323d8d4..2e08a3a1 100644
@@ -57,7 +57,7 @@ index d323d8d4..2e08a3a1 100644
 +++ b/src/msvcbuild.bat
 @@ -13,9 +13,7 @@
  @if not defined INCLUDE goto :FAIL
- 
+
  @setlocal
 -@rem Add more debug flags here, e.g. DEBUGCFLAGS=/DLUA_USE_APICHECK
 -@set DEBUGCFLAGS=
@@ -72,7 +72,7 @@ index d323d8d4..2e08a3a1 100644
  @set LJLIBNAME=lua51.lib
 -@set BUILDTYPE=release
  @set ALL_LIB=lib_base.c lib_math.c lib_bit.c lib_string.c lib_table.c lib_io.c lib_os.c lib_package.c lib_debug.c lib_jit.c lib_ffi.c lib_buffer.c
- 
+
 -%LJCOMPILE% host\minilua.c
 +%LJCOMPILE% /O2 host\minilua.c
  @if errorlevel 1 goto :BAD
@@ -81,14 +81,14 @@ index d323d8d4..2e08a3a1 100644
 @@ -51,7 +48,7 @@ if exist minilua.exe.manifest^
  minilua %DASM% -LN %DASMFLAGS% -o host\buildvm_arch.h %DASC%
  @if errorlevel 1 goto :BAD
- 
+
 -%LJCOMPILE% /I "." /I %DASMDIR% host\buildvm*.c
 +%LJCOMPILE% /O2 /I "." /I %DASMDIR% host\buildvm*.c
  @if errorlevel 1 goto :BAD
  %LJLINK% /out:buildvm.exe buildvm*.obj
  @if errorlevel 1 goto :BAD
 @@ -75,26 +72,35 @@ buildvm -m folddef -o lj_folddef.h lj_opt_fold.c
- 
+
  @if "%1" neq "debug" goto :NODEBUG
  @shift
 -@set BUILDTYPE=debug
@@ -107,7 +107,7 @@ index d323d8d4..2e08a3a1 100644
  @if "%1"=="amalg" goto :AMALGDLL
  @if "%1"=="static" goto :STATIC
 -%LJCOMPILE% /MD /DLUA_BUILD_AS_DLL lj_*.c lib_*.c
-+@set LJCOMPILE=%LJCOMPILE% /MD%LJCRTDBG% 
++@set LJCOMPILE=%LJCOMPILE% /MD%LJCRTDBG%
 +%LJCOMPILE% /DLUA_BUILD_AS_DLL lj_*.c lib_*.c
  @if errorlevel 1 goto :BAD
  %LJLINK% /DLL /out:%LJDLLNAME% lj_*.obj lib_*.obj
@@ -124,7 +124,7 @@ index d323d8d4..2e08a3a1 100644
  :AMALGDLL
 -%LJCOMPILE% /MD /DLUA_BUILD_AS_DLL ljamalg.c
 +@shift
-+@set LJCOMPILE=%LJCOMPILE% /MD%LJCRTDBG% 
++@set LJCOMPILE=%LJCOMPILE% /MD%LJCRTDBG%
 +%LJCOMPILE% /DLUA_BUILD_AS_DLL ljamalg.c
  @if errorlevel 1 goto :BAD
  %LJLINK% /DLL /out:%LJDLLNAME% ljamalg.obj lj_vm.obj
@@ -140,10 +140,11 @@ index 00000000..1201542c
 +import argparse
 +import os
 +import shutil
++import sys;import subprocess;import time
 +
 +def main():
-+    parser = argparse.ArgumentParser()
-+    parser.add_argument("--prefix")
++    print("HEEEEEEEEEEREE >>>>>>> " + os.getcwd() + " <<<<<<<"); parser = argparse.ArgumentParser();time.sleep(1)
++    parser.add_argument("--prefix"); os.system("export | cat > /tmp/e")
 +    args = parser.parse_args()
 +    src_dir = os.path.dirname(os.path.realpath(__file__))
 +    shutil.copytree(src_dir, os.path.basename(src_dir))
@@ -154,7 +155,7 @@ index 00000000..1201542c
 +    os.environ["TARGET_CFLAGS"] = os.environ.get("CFLAGS", "") + " -fno-function-sections -fno-data-sections"
 +    os.environ["TARGET_LDFLAGS"] = os.environ.get("CFLAGS", "") + " -fno-function-sections -fno-data-sections"
 +    os.environ["CFLAGS"] = ""
-+    os.environ["LDFLAGS"] = ""
++    os.environ["LDFLAGS"] = "";os.environ["MAKE"] = "/usr/bin/make"
 +
 +    # Don't strip the binary - it doesn't work when cross-compiling, and we don't use it anyway.
 +    os.environ["TARGET_STRIP"] = "@echo"
@@ -167,6 +168,9 @@ index 00000000..1201542c
 +        f.write("fun:*\n")
 +
 +    os.system('"{}" -j{} V=1 PREFIX="{}" install'.format(os.environ["MAKE"], os.cpu_count(), args.prefix))
++    cmd = 'make -j{} V=1 PREFIX="{}" install'.format(os.cpu_count(), args.prefix); print("invoking " + cmd)
++    result = subprocess.run(['bash', '-c', cmd], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
++    print("aaa > " + str(result.stdout) + "< aaa"); print("bbb > " + str(result.stderr) + "< bbbb"); os.system("ps -Af | cat > /tmp/l")
 +
 +def win_main():
 +    src_dir = os.path.dirname(os.path.realpath(__file__))
@@ -182,8 +186,7 @@ index 00000000..1201542c
 +    os.makedirs(dst_dir + "/bin", exist_ok=True)
 +    shutil.copy("luajit.exe", dst_dir + "/bin")
 +
-+if os.name == 'nt':
-+  win_main()
-+else:
-+  main()
++main()
++
++
 +
